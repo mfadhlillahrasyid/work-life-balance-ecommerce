@@ -1,0 +1,47 @@
+[
+    {
+        "id": "0a54897e-3be3-4cd6-956e-e093aaa97bb5",
+        "title": "News",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+        "slug": "news",
+        "slug_uuid": "news-0a54897e-3be3-4cd6-956e-e093aaa97bb5",
+        "created_at": "2026-01-30 07:50:24",
+        "deleted_at": null
+    },
+    {
+        "id": "dc59f219-0e1f-4f3f-8b21-b052bc534129",
+        "title": "Trending",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua",
+        "slug": "trending",
+        "slug_uuid": "trending-dc59f219-0e1f-4f3f-8b21-b052bc534129",
+        "created_at": "2026-01-30 11:08:55",
+        "deleted_at": null
+    },
+    {
+        "id": "569eb1aa-e5f9-4df0-8141-98b095150131",
+        "title": "Marketing",
+        "description": "Tinggal bilang: lanjut ke mana.\r\nSekarang fondasi lo udah benar, bukan sekadar “jalan”.",
+        "slug": "marketing",
+        "slug_uuid": "marketing-569eb1aa-e5f9-4df0-8141-98b095150131",
+        "created_at": "2026-01-31 05:11:14",
+        "deleted_at": "2026-01-31 05:56:50"
+    },
+    {
+        "id": "9918e948-6c96-452d-969a-0cec078b4991",
+        "title": "Lifestyle",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+        "slug": "lifestyle",
+        "slug_uuid": "lifestyle-9918e948-6c96-452d-969a-0cec078b4991",
+        "created_at": "2026-02-01 08:12:16",
+        "deleted_at": null
+    },
+    {
+        "id": "11cf1edc-acbc-40e5-99bf-b9e7e83888a0",
+        "title": "Insight",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+        "slug": "insight",
+        "slug_uuid": "insight-11cf1edc-acbc-40e5-99bf-b9e7e83888a0",
+        "created_at": "2026-02-01 08:12:45",
+        "deleted_at": null
+    }
+]

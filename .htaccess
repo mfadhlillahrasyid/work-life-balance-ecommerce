@@ -1,0 +1,12 @@
+RewriteEngine On
+
+# Jangan ganggu file & folder asli (assets, css, js, dll)
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Semua route lain ke index.php
+RewriteRule ^ index.php [L]
+RewriteRule ^views/ - [F,L]

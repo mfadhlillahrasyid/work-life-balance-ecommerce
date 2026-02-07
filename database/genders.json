@@ -1,0 +1,47 @@
+[
+    {
+        "id": "c11b3b2a-72e2-451b-8578-d0de52fbd94d",
+        "title": "Men",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+        "slug": "men",
+        "slug_uuid": "men-c11b3b2a-72e2-451b-8578-d0de52fbd94d",
+        "created_at": "2026-02-01 10:12:06",
+        "deleted_at": null
+    },
+    {
+        "id": "d7adbc99-69dd-4347-a7fe-8b8475757254",
+        "title": "Woman",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+        "slug": "woman",
+        "slug_uuid": "woman-d7adbc99-69dd-4347-a7fe-8b8475757254",
+        "created_at": "2026-02-01 10:13:37",
+        "deleted_at": null
+    },
+    {
+        "id": "02219088-fc6a-4cb8-ae43-03308263e2c5",
+        "title": "Kids",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+        "slug": "kids",
+        "slug_uuid": "kids-02219088-fc6a-4cb8-ae43-03308263e2c5",
+        "created_at": "2026-02-01 10:13:46",
+        "deleted_at": null
+    },
+    {
+        "id": "8fad88d3-39e2-4295-8bdb-c69448623b4a",
+        "title": "Boy",
+        "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+        "slug": "boy",
+        "slug_uuid": "boy-8fad88d3-39e2-4295-8bdb-c69448623b4a",
+        "created_at": "2026-02-01 10:26:41",
+        "deleted_at": "2026-02-01 10:26:44"
+    },
+    {
+        "id": "484627f6-17db-466a-9c36-1c6c404fbc93",
+        "title": "General",
+        "description": "Istilah \"Sustainable\" bukan lagi sekadar label, tapi gaya hidup. Konsumen 2026 lebih memilih kualitas daripada kuantitas.",
+        "slug": "general",
+        "slug_uuid": "general-484627f6-17db-466a-9c36-1c6c404fbc93",
+        "created_at": "2026-02-01 14:21:40",
+        "deleted_at": null
+    }
+]

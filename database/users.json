@@ -1,0 +1,14 @@
+[
+        {
+        "id": 1,
+        "nama_lengkap": "Muhammad Fadhlillah Rasyid",
+        "roles" : "admin",
+        "slug": "muhammad-fadhlillah-rasyid",
+        "slug_uuid": "muhammad-fadhlillah-rasyid-6c562012-de47-452e-880a-6ae025eb9e3f",
+        "email": "muhammadfadhlillahrasyid@gmail.com",
+        "password": "$2y$10$YTO8l6cdC1foevFpwEpt2ut6/M/iKunCETFR9rsyTWH2KfxXitY9C",
+        "created_at": "2026-02-04 04:49:49",
+        "updated_at": null,
+        "deleted_at": null
+    }
+]
