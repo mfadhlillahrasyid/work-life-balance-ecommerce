@@ -88,13 +88,9 @@ ob_start();
                                         border border-gray-200 rounded-lg shadow-lg hidden">
 
                                 <?php foreach ($categories as $category): ?>
-                                    <?php if (!empty($category['deleted_at']))
-                                        continue; ?>
-
                                     <div class="py-2 px-3 hover:bg-gray-100 cursor-pointer category-option"
                                         data-value="<?= htmlspecialchars($category['id']) ?>"
                                         data-label="<?= htmlspecialchars($category['title']) ?>">
-
                                         <p class="text-sm text-gray-800">
                                             <?= htmlspecialchars($category['title']) ?>
                                         </p>
@@ -102,7 +98,6 @@ ob_start();
                                 <?php endforeach; ?>
                             </div>
                         </div>
-
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -162,9 +157,7 @@ ob_start();
                             <label class="block text-sm font-semibold">Tags</label>
                             <textarea name="tags" rows="7"
                                 class="w-full border text-sm tracking-tight rounded-lg px-3 py-2 bg-neutral-50 text-neutral-700 focus:ring-2 focus:ring-indigo-700 focus:outline-none"
-                                placeholder="one, two, three"><?= htmlspecialchars(
-                                    isset($post['tags']) ? implode(', ', $post['tags']) : ''
-                                ) ?></textarea>
+                                placeholder="one, two, three"><?= htmlspecialchars(implode(', ', parse_tags($post['tags'] ?? ''))) ?></textarea>
 
                         </div>
                     </div>

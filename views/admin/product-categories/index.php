@@ -83,15 +83,13 @@ ob_start();
                     </thead>
                     <tbody>
                         <?php foreach ($categories as $category): ?>
-                            <?php if (!empty($category['deleted_at']))
-                                continue; ?>
                             <tr class="bg-neutral-primary-soft text-neutral-600 border-b last:border-b-0">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center gap-4">
                                         <?php if (!empty($category['icon'])): ?>
                                             <img src="/storage/icons/<?= htmlspecialchars($category['icon']) ?>"
                                                 alt="<?= htmlspecialchars($category['title']) ?>"
-                                                class="w-11 h-11 object-cover aspect-square rounded-md border p-1 shadow-lg shadow-neutral-400/30"
+                                                class="w-11 h-11 object-cover aspect-square rounded-md border shadow-lg shadow-neutral-400/30"
                                                 loading="lazy">
                                         <?php else: ?>
                                             <div

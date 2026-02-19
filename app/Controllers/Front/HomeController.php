@@ -1,42 +1,40 @@
 <?php
+// app/Controllers/Front/HomeController.php
 
 namespace App\Controllers\Front;
 
 class HomeController
 {
-    public static function index()
+    public static function index(): void
     {
-        // 1️⃣ Ambil data genders
-        $genders = json_read('genders.json');
+        // Ambil genders dari SQLite
+        $genders = db()->query("
+            SELECT id, title, slug, banner
+            FROM genders
+            WHERE deleted_at IS NULL
+            ORDER BY title ASC
+        ")->fetchAll();
 
-        if (!is_array($genders)) {
-            $genders = [];
-        }
+        // Ambil featured products (published, ada stock)
+        $featuredProducts = db()->query("
+            SELECT p.id, p.title, p.slug_uuid,
+                   pc.title AS category_name,
+                   (SELECT image FROM product_images WHERE product_id = p.id ORDER BY sort_order ASC LIMIT 1) AS thumbnail,
+                   MIN(pv.price) AS price_from,
+                   SUM(pv.stock) AS total_stock
+            FROM products p
+            LEFT JOIN product_categories pc ON pc.id = p.product_category_id
+            LEFT JOIN product_variants pv ON pv.product_id = p.id
+            WHERE p.deleted_at IS NULL AND p.status = 1
+            GROUP BY p.id
+            HAVING total_stock > 0
+            ORDER BY p.created_at DESC
+            LIMIT 8
+        ")->fetchAll();
 
-        // 2️⃣ Filter: hanya yang tidak dihapus
-        $genders = array_values(array_filter($genders, function ($gender) {
-            return empty($gender['deleted_at']);
-        }));
-
-        // 3️⃣ Mapping ke data contract FRONT
-        $genders = array_map(function ($gender) {
-            return [
-                'id' => $gender['id'],
-                'title' => $gender['title'],
-                'slug' => $gender['slug'],
-            ];
-        }, $genders);
-
-        // 4️⃣ Sorting alfabet (UX > ego)
-        usort($genders, function ($b, $a) {
-            return strcmp($a['title'], $b['title']);
-        });
-
-        // 5️⃣ Render view
-        return view('front/home', [
-            'genders' => $genders,
+        view('front/home', [
+            'genders'         => $genders,
+            'featuredProducts' => $featuredProducts,
         ]);
     }
-
-
 }

@@ -9,6 +9,7 @@ use App\Controllers\Admin\GenderController;
 use App\Controllers\Admin\PostController;
 use App\Controllers\Admin\AuthController;
 use App\Controllers\Admin\DashboardController;
+use App\Controllers\Admin\UserController;
 
 
 /*
@@ -54,6 +55,47 @@ $routes[] = [
     'method' => 'GET',
     'pattern' => '#^admin/dashboard$#',
     'action' => [DashboardController::class, 'index']
+];
+
+/*
+|--------------------------------------------------------------------------
+| USERS
+|--------------------------------------------------------------------------
+*/
+$routes[] = [
+    'method' => 'GET',
+    'pattern' => '#^admin/users$#',
+    'action' => [UserController::class, 'index']
+];
+
+$routes[] = [
+    'method' => 'GET',
+    'pattern' => '#^admin/users/create$#',
+    'action' => [UserController::class, 'create']
+];
+
+$routes[] = [
+    'method' => 'POST',
+    'pattern' => '#^admin/users$#',
+    'action' => [UserController::class, 'store']
+];
+
+$routes[] = [
+    'method' => 'GET',
+    'pattern' => '#^admin/users/([a-zA-Z0-9\-]+)/edit$#',
+    'action' => [UserController::class, 'edit']
+];
+
+$routes[] = [
+    'method' => 'POST',
+    'pattern' => '#^admin/users/([a-zA-Z0-9\-]+)/update$#',
+    'action' => [UserController::class, 'update']
+];
+
+$routes[] = [
+    'method' => 'POST',
+    'pattern' => '#^admin/users/([a-zA-Z0-9\-]+)/delete$#',
+    'action' => [UserController::class, 'destroy']
 ];
 
 /*

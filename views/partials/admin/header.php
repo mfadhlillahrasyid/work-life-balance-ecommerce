@@ -27,8 +27,8 @@
                             class="flex text-sm bg-gray-800 rounded-full focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600"
                             aria-expanded="false" data-dropdown-toggle="dropdown-user">
                             <span class="sr-only">Open user menu</span>
-                            <img class="w-8 h-8 shrink-0 rounded-full ring-1 ring-slate-400" src="/assets/images/pp.webp"
-                                alt="User Work Life Balance Apparel">
+                            <img class="w-8 h-8 shrink-0 rounded-full ring-1 ring-slate-400"
+                                src="/assets/images/pp.webp" alt="User Work Life Balance Apparel">
                         </button>
                     </div>
                     <div class="z-50 hidden bg-white border border-default-medium rounded-xl shadow-lg w-44 P-4"
@@ -43,8 +43,11 @@
                         </div>
                         <ul class="p-2 text-sm font-normal" role="none">
                             <li>
-                                <a href="#" class="inline-flex items-center w-full p-2 hover:bg-neutral-100 rounded-lg"
-                                    role="menuitem">Settings</a>
+                                <a href="/admin/users/<?= htmlspecialchars($_SESSION['admin']['slug_uuid'] ?? '') ?>/edit"
+                                    class="inline-flex items-center w-full p-2 hover:bg-neutral-100 rounded-lg"
+                                    role="menuitem">
+                                    Settings
+                                </a>
                             </li>
                             <li>
                                 <a href="#" onclick="openLogoutModal(event)"

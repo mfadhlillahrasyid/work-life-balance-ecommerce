@@ -36,50 +36,42 @@ function breadcrumb(array $items)
 // ===============================
 // NAV BY CATEGORIES
 // ===============================
-function get_nav_categories()
+function get_nav_categories(): array
 {
-    static $navCategories = null;
-
-    // Cache result (load only once per request)
-    if ($navCategories === null) {
-        $allCategories = json_read('product-categories.json') ?? [];
-
-        $navCategories = array_values(array_filter($allCategories, function ($cat) {
-            return
-                empty($cat['deleted_at']) &&
-                !empty($cat['available']);
-        }));
-
-        // Sort by newest first (optional)
-        usort($navCategories, function ($a, $b) {
-            return strcmp($b['created_at'] ?? '', $a['created_at'] ?? '');
-        });
+    if (isset($GLOBALS['_nav_categories'])) {
+        return $GLOBALS['_nav_categories'];
     }
 
-    return $navCategories;
+    $stmt = db()->query("
+        SELECT id, title, slug, icon, description
+        FROM product_categories
+        WHERE deleted_at IS NULL
+          AND available = 1
+        ORDER BY title ASC
+    ");
+
+    $GLOBALS['_nav_categories'] = $stmt->fetchAll();
+    return $GLOBALS['_nav_categories'];
 }
 
 // ===============================
 // NAV BY GENDER
 // ===============================
-function get_nav_genders()
+function get_nav_genders(): array
 {
-    static $navGenders = null;
-
-    if ($navGenders === null) {
-        $allGenders = json_read('genders.json') ?? [];
-
-        $navGenders = array_values(array_filter($allGenders, function ($g) {
-            return empty($g['deleted_at']);
-        }));
-
-        // Sort by title ASC (Men, Women)
-        usort($navGenders, function ($a, $b) {
-            return strcmp($a['title'] ?? '', $b['title'] ?? '');
-        });
+    if (isset($GLOBALS['_nav_genders'])) {
+        return $GLOBALS['_nav_genders'];
     }
 
-    return $navGenders;
+    $stmt = db()->query("
+        SELECT id, title, slug, banner
+        FROM genders
+        WHERE deleted_at IS NULL
+        ORDER BY title ASC
+    ");
+
+    $GLOBALS['_nav_genders'] = $stmt->fetchAll();
+    return $GLOBALS['_nav_genders'];
 }
 
 // ===============================

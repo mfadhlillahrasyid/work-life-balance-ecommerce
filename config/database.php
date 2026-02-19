@@ -1,17 +1,53 @@
 <?php
+// config/database.php
 
+// use PDO;
+// use PDOException;
+
+// ─── SQLite PDO Connection (Singleton) ───────────────────────────────────────
+if (!function_exists('db')) {
+    function db(): PDO
+    {
+        static $pdo = null;
+
+        if ($pdo === null) {
+            $dbPath = ROOT_PATH . '/database/database.sqlite';
+
+            if (!file_exists($dbPath)) {
+                http_response_code(500);
+                exit('[ERROR] Database tidak ditemukan. Jalankan migrate.php terlebih dahulu.');
+            }
+
+            try {
+                $pdo = new PDO('sqlite:' . $dbPath, null, null, [
+                    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                ]);
+
+                $pdo->exec('PRAGMA journal_mode = WAL;');
+                $pdo->exec('PRAGMA foreign_keys = ON;');
+
+            } catch (PDOException $e) {
+                http_response_code(500);
+                exit('[ERROR] Koneksi database gagal: ' . $e->getMessage());
+            }
+        }
+
+        return $pdo;
+    }
+}
+
+// ─── JSON Helpers (Legacy - hapus bertahap setelah semua controller migrasi) ──
 if (!function_exists('resolve_db_path')) {
     function resolve_db_path(string $file): string
     {
-        // Kalau sudah absolute path → pakai langsung
         if (
-            str_starts_with($file, '/') ||                 // Linux
-            preg_match('/^[A-Z]:\\\\/i', $file)            // Windows
+            str_starts_with($file, '/') ||
+            preg_match('/^[A-Z]:\\\\/i', $file)
         ) {
             return $file;
         }
 
-        // Kalau cuma nama file → arahkan ke root/database
         return ROOT_PATH . '/database/' . ltrim($file, '/');
     }
 }

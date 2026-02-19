@@ -4,7 +4,7 @@
 
 <div class="border-b border-neutral-200">
     <div class="relative mx-auto w-full min-h-[70vh] sm:min-h-[90vh] items-center flex bg-cover bg-center bg-no-repeat z-0"
-        style="background-image: url('https://prostreet.id/wp-content/uploads/2025/08/13-2048x840.jpg');">
+        style="background-image: url('https://insurgentclub.com/cdn/shop/files/insurgent_2026_the-idealist__banner_web_jpg.jpg?v=1769222982');">
         <div class="absolute inset-0 bg-black/30 z-10"></div>
     </div>
 </div>
@@ -15,9 +15,9 @@
             <section class="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 p-2 gap-2 sm:p-4 sm:gap-4">
                 <?php foreach ($genders as $gender): ?>
                     <a href="/shop/<?= htmlspecialchars($gender['slug']) ?>" class="relative overflow-hidden group rounded-xl">
-                        <img src="https://d2kchovjbwl1tk.cloudfront.net/vendors/12345/assets/image/1770004960312-BANNER_2_resized2048-png.webp"
+                        <img src="/storage/banners/<?= htmlspecialchars($gender['banner']) ?>"
                             alt="T-Shirt"
-                            class="w-full aspect-video sm:aspect-square h-full group-hover:scale-105 transition-all duration-300 object-cover">
+                            class="w-full aspect-video sm:aspect-square h-full scale-105 group-hover:scale-110 transition-all duration-300 object-cover">
                         <div class="absolute inset-0 bg-black/30 transition-all duration-300">
                         </div>
                         <div class="absolute inset-0 flex flex-col p-5 items-start justify-end text-white">

@@ -1,65 +1,107 @@
 <?php
+// app/Controllers/Admin/PostController.php
 
 namespace App\Controllers\Admin;
 
 class PostController
 {
-    public static function index()
+    // =========================================================================
+    // INDEX
+    // =========================================================================
+    public static function index(): void
     {
         admin_auth();
 
-        $posts = json_read('posts.json');
-        $categories = json_read('post-categories.json');
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $search = trim($_GET['search'] ?? '');
 
-        if (!is_array($posts)) {
-            $posts = [];
+        $sql = "SELECT p.id, p.title, p.slug_uuid, p.status, p.banner,
+               p.tags, p.created_at,
+               p.content,
+               pc.title AS category_name
+        FROM posts p
+        LEFT JOIN post_categories pc ON pc.id = p.post_category_id
+        WHERE p.deleted_at IS NULL";
+        $params = [];
+
+        if ($search !== '') {
+            $sql .= " AND p.title LIKE :search";
+            $params[':search'] = '%' . $search . '%';
         }
 
-        if (!is_array($categories)) {
-            $categories = [];
-        }
+        $sql .= " ORDER BY p.created_at DESC";
 
-        return view(
-            'admin/posts/index',
-            compact('posts', 'categories')
-        );
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+        $allPosts = $stmt->fetchAll();
+
+        $pagination = paginate($allPosts, 10, $page);
+
+        view('admin/posts/index', [
+            'posts' => $pagination['data'],
+            'pagination' => $pagination['meta'],
+            'search' => $search,
+        ]);
     }
 
-
-    public static function create()
+    // =========================================================================
+    // CREATE
+    // =========================================================================
+    public static function create(): void
     {
         admin_auth();
 
-        $categories = json_read('post-categories.json');
+        $categories = db()->query("
+            SELECT id, title FROM post_categories
+            WHERE deleted_at IS NULL
+            ORDER BY title ASC
+        ")->fetchAll();
 
-        return view(
-            'admin/posts/create',
-            compact('categories')
-        );
+        view('admin/posts/create', compact('categories'));
     }
 
-    public static function store()
+    // =========================================================================
+    // STORE
+    // =========================================================================
+    public static function store(): void
     {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return redirect('/admin/posts');
-        }
-
         admin_auth();
 
         $title = trim($_POST['title'] ?? '');
-        $postCategoryId = $_POST['post_category_id'] ?? null;
+        $postCategoryId = (int) ($_POST['post_category_id'] ?? 0);
         $content = $_POST['content'] ?? '';
+        $tags = $_POST['tags'] ?? '';
+        $status = isset($_POST['status']) ? 1 : 0;
+
+        // ── Validasi ──────────────────────────────────────────────────────────
+        $errors = [];
 
         if ($title === '') {
-            $_SESSION['error'] = 'Title is required';
-            return redirect('/admin/posts/create');
+            $errors[] = 'Title wajib diisi.';
         }
 
-        if (!$postCategoryId) {
-            $_SESSION['error'] = 'Category is required';
-            return redirect('/admin/posts/create');
+        if ($postCategoryId === 0) {
+            $errors[] = 'Category wajib dipilih.';
         }
 
+        if ($content === '') {
+            $errors[] = 'Content wajib diisi.';
+        }
+
+        if (!empty($errors)) {
+            flash('admin_error', implode(' ', $errors));
+            redirect('/admin/posts/create');
+        }
+
+        // ── Validasi category exist ───────────────────────────────────────────
+        $check = db()->prepare("SELECT COUNT(*) FROM post_categories WHERE id = :id AND deleted_at IS NULL");
+        $check->execute([':id' => $postCategoryId]);
+        if ((int) $check->fetchColumn() === 0) {
+            flash('admin_error', 'Category tidak valid.');
+            redirect('/admin/posts/create');
+        }
+
+        // ── Upload banner ─────────────────────────────────────────────────────
         $banner = null;
         if (!empty($_FILES['banner']['name'])) {
             try {
@@ -69,194 +111,226 @@ class PostController
                     2
                 );
             } catch (\Exception $e) {
-                $_SESSION['error'] = $e->getMessage();
-                return redirect('/admin/posts/create');
+                flash('admin_error', $e->getMessage());
+                redirect('/admin/posts/create');
             }
         }
 
-        $posts = json_read('posts.json');
-        if (!is_array($posts))
-            $posts = [];
+        // ── Normalize tags → comma-separated ─────────────────────────────────
+        $tagsNormalized = $tags !== '' ? implode(',', parse_tags($tags)) : null;
 
+        // ── Insert ────────────────────────────────────────────────────────────
         $uuid = uuid_v4();
         $slug = slugify($title);
         $slugUuid = $slug . '-' . $uuid;
 
-        $posts[] = [
-            'id' => $uuid,
-            'slug_uuid' => $slugUuid,
-            'title' => htmlspecialchars($title, ENT_QUOTES, 'UTF-8'),
-            'slug' => $slug,
-            'post_category_id' => $postCategoryId,
-            'banner' => $banner,
-            'content' => $content,
-            'tags' => parse_tags($_POST['tags'] ?? ''),
-            'status' => false,
-            'created_at' => date('Y-m-d H:i:s'),
-            'updated_at' => null,
-            'deleted_at' => null
-        ];
+        $stmt = db()->prepare("
+            INSERT INTO posts (title, slug, slug_uuid, post_category_id, banner, content, tags, status, created_at)
+            VALUES (:title, :slug, :slug_uuid, :post_category_id, :banner, :content, :tags, :status, :created_at)
+        ");
 
-        json_write('posts.json', $posts);
+        $stmt->execute([
+            ':title' => $title,
+            ':slug' => $slug,
+            ':slug_uuid' => $slugUuid,
+            ':post_category_id' => $postCategoryId,
+            ':banner' => $banner,
+            ':content' => $content,
+            ':tags' => $tagsNormalized,
+            ':status' => $status,
+            ':created_at' => date('Y-m-d H:i:s'),
+        ]);
 
-        $_SESSION['success'] = 'Post created successfully';
-        return redirect('/admin/posts');
+        flash('admin_success', 'Post berhasil ditambahkan.');
+        redirect('/admin/posts');
     }
 
-
-    public static function edit(string $slugUuid)
+    // =========================================================================
+    // EDIT
+    // =========================================================================
+    public static function edit(string $slugUuid): void
     {
         admin_auth();
 
-        $posts = json_read('posts.json');
-        $categories = json_read('post-categories.json');
-
-        if (!is_array($posts))
-            $posts = [];
-        if (!is_array($categories))
-            $categories = [];
-
-        $post = null;
-        foreach ($posts as $p) {
-            if ($p['slug_uuid'] === $slugUuid) {
-                $post = $p;
-                break;
-            }
-        }
+        $stmt = db()->prepare("
+            SELECT id, title, slug, slug_uuid, post_category_id, banner, content, tags, status
+            FROM posts
+            WHERE slug_uuid = :slug_uuid AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':slug_uuid' => $slugUuid]);
+        $post = $stmt->fetch();
 
         if (!$post) {
-            return redirect('/admin/posts');
+            flash('admin_error', 'Post tidak ditemukan.');
+            redirect('/admin/posts');
         }
 
-        // 🔥 MAP CATEGORY ID → TITLE (CONTROLLER)
+        $categories = db()->query("
+            SELECT id, title FROM post_categories
+            WHERE deleted_at IS NULL
+            ORDER BY title ASC
+        ")->fetchAll();
+
+        // Map category name untuk dropdown label
         $currentCategoryName = null;
         foreach ($categories as $category) {
-            if ($category['id'] === ($post['post_category_id'] ?? null)) {
+            if ((int) $category['id'] === (int) $post['post_category_id']) {
                 $currentCategoryName = $category['title'];
                 break;
             }
         }
 
-        return view(
-            'admin/posts/edit',
-            compact('post', 'categories', 'currentCategoryName')
-        );
+        view('admin/posts/edit', compact('post', 'categories', 'currentCategoryName'));
     }
 
-
-    public static function update(string $slugUuid)
+    // =========================================================================
+    // UPDATE
+    // =========================================================================
+    public static function update(string $slugUuid): void
     {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return redirect('/admin/posts');
-        }
-
         admin_auth();
 
         $title = trim($_POST['title'] ?? '');
-        $category = $_POST['post_category_id'] ?? null;
+        $postCategoryId = (int) ($_POST['post_category_id'] ?? 0);
         $content = $_POST['content'] ?? '';
+        $tags = trim($_POST['tags'] ?? '');
+        $status = isset($_POST['status']) ? 1 : 0;
+        $removeBanner = ($_POST['remove_banner'] ?? '0') === '1';
+
+        // ── Validasi ──────────────────────────────────────────────────────────
+        $errors = [];
 
         if ($title === '') {
-            $_SESSION['error'] = 'Title is required';
-            return redirect('/admin/posts/' . $slugUuid . '/edit');
+            $errors[] = 'Title wajib diisi.';
         }
 
-        if (!$category) {
-            $_SESSION['error'] = 'Category is required';
-            return redirect('/admin/posts/' . $slugUuid . '/edit');
+        if ($postCategoryId === 0) {
+            $errors[] = 'Category wajib dipilih.';
         }
 
-        $posts = json_read('posts.json');
-        if (!is_array($posts)) {
-            return redirect('/admin/posts');
+        if ($content === '') {
+            $errors[] = 'Content wajib diisi.';
         }
 
-        foreach ($posts as &$post) {
-            if ($post['slug_uuid'] === $slugUuid) {
+        if (!empty($errors)) {
+            flash('admin_error', implode(' ', $errors));
+            redirect('/admin/posts/' . $slugUuid . '/edit');
+        }
 
-                // =====================
-                // BASIC FIELDS
-                // =====================
-                $post['title'] = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
-                $post['slug'] = slugify($title);
-                $post['post_category_id'] = $_POST['post_category_id'];
-                $post['content'] = $content;
-                $post['tags'] = parse_tags($_POST['tags'] ?? '');
-                $post['status'] = isset($_POST['status']) ? true : false;
-                $post['updated_at'] = date('Y-m-d H:i:s');
+        // ── Ambil data lama ───────────────────────────────────────────────────
+        $stmt = db()->prepare("
+            SELECT id, banner FROM posts
+            WHERE slug_uuid = :slug_uuid AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':slug_uuid' => $slugUuid]);
+        $post = $stmt->fetch();
 
-                // =====================
-                // REMOVE BANNER
-                // =====================
-                if (
-                    isset($_POST['remove_banner']) &&
-                    $_POST['remove_banner'] === '1' &&
-                    !empty($post['banner'])
-                ) {
-                    @unlink(ROOT_PATH . '/storage/banners/' . $post['banner']);
-                    $post['banner'] = null;
-                }
+        if (!$post) {
+            flash('admin_error', 'Post tidak ditemukan.');
+            redirect('/admin/posts');
+        }
 
-                // =====================
-                // UPLOAD / REPLACE BANNER
-                // =====================
-                if (!empty($_FILES['banner']['name'])) {
-                    try {
-                        // hapus banner lama jika ada
-                        if (!empty($post['banner'])) {
-                            @unlink(ROOT_PATH . '/storage/banners/' . $post['banner']);
-                        }
+        // ── Handle banner ─────────────────────────────────────────────────────
+        $bannerPath = $post['banner'];
 
-                        $post['banner'] = upload_image(
-                            $_FILES['banner'],
-                            ROOT_PATH . '/storage/banners',
-                            2 // max 2MB
-                        );
-                    } catch (\Exception $e) {
-                        $_SESSION['error'] = $e->getMessage();
-                        return redirect('/admin/posts/' . $slugUuid . '/edit');
+        if ($removeBanner && $bannerPath !== null) {
+            $oldFile = ROOT_PATH . '/storage/banners/' . $bannerPath;
+            if (file_exists($oldFile)) {
+                unlink($oldFile);
+            }
+            $bannerPath = null;
+        }
+
+        if (!empty($_FILES['banner']['name'])) {
+            try {
+                $newBanner = upload_image(
+                    $_FILES['banner'],
+                    ROOT_PATH . '/storage/banners',
+                    2
+                );
+
+                if ($bannerPath !== null) {
+                    $oldFile = ROOT_PATH . '/storage/banners/' . $bannerPath;
+                    if (file_exists($oldFile)) {
+                        unlink($oldFile);
                     }
                 }
 
-                break;
+                $bannerPath = $newBanner;
+
+            } catch (\Exception $e) {
+                flash('admin_error', $e->getMessage());
+                redirect('/admin/posts/' . $slugUuid . '/edit');
             }
         }
 
-        json_write('posts.json', $posts);
+        $tagsNormalized = $tags !== '' ? implode(',', parse_tags($tags)) : null;
 
-        $_SESSION['success'] = 'Post updated successfully';
-        return redirect('/admin/posts');
+        // ── Update ────────────────────────────────────────────────────────────
+        $uuidPart = substr($slugUuid, -36);
+        $newSlug = slugify($title);
+        $newSlugUuid = $newSlug . '-' . $uuidPart;
+
+        $stmt = db()->prepare("
+            UPDATE posts
+            SET title            = :title,
+                slug             = :slug,
+                slug_uuid        = :slug_uuid,
+                post_category_id = :post_category_id,
+                banner           = :banner,
+                content          = :content,
+                tags             = :tags,
+                status           = :status,
+                updated_at       = :updated_at
+            WHERE id = :id
+        ");
+
+        $stmt->execute([
+            ':title' => $title,
+            ':slug' => $newSlug,
+            ':slug_uuid' => $newSlugUuid,
+            ':post_category_id' => $postCategoryId,
+            ':banner' => $bannerPath,
+            ':content' => $content,
+            ':tags' => $tagsNormalized,
+            ':status' => $status,
+            ':updated_at' => date('Y-m-d H:i:s'),
+            ':id' => $post['id'],
+        ]);
+
+        flash('admin_success', 'Post berhasil diupdate.');
+        redirect('/admin/posts');
     }
 
-    public static function destroy(string $slugUuid)
+    // =========================================================================
+    // DESTROY (Soft Delete)
+    // =========================================================================
+    public static function destroy(string $slugUuid): void
     {
         admin_auth();
 
-        $posts = json_read('posts.json');
-        if (!is_array($posts)) {
-            return redirect('/admin/posts');
+        // Soft delete saja — file banner TIDAK dihapus
+        // Kalau nanti butuh hard delete, buat method terpisah
+        $stmt = db()->prepare("
+            UPDATE posts
+            SET deleted_at = :deleted_at
+            WHERE slug_uuid = :slug_uuid
+              AND deleted_at IS NULL
+        ");
+
+        $stmt->execute([
+            ':deleted_at' => date('Y-m-d H:i:s'),
+            ':slug_uuid' => $slugUuid,
+        ]);
+
+        if ($stmt->rowCount() > 0) {
+            flash('admin_success', 'Post berhasil dihapus.');
+        } else {
+            flash('admin_error', 'Post tidak ditemukan.');
         }
 
-        foreach ($posts as &$post) {
-            if ($post['slug_uuid'] === $slugUuid) {
-
-                // hapus banner file (opsional tapi rapi)
-                if (!empty($post['banner'])) {
-                    @unlink(ROOT_PATH . '/storage/banners/' . $post['banner']);
-                    $post['banner'] = null;
-                }
-
-                $post['deleted_at'] = date('Y-m-d H:i:s');
-                break;
-            }
-        }
-
-        json_write('posts.json', $posts);
-
-        $_SESSION['success'] = 'Post deleted successfully';
-        return redirect('/admin/posts');
+        redirect('/admin/posts');
     }
-
 }
-
-

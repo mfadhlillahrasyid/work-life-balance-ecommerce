@@ -63,24 +63,49 @@
     </div>
 
     <script src="/assets/js/admin.js"></script>
-    <script src="//cdn.ckeditor.com/4.22.1/standard/ckeditor.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flowbite@4.0.1/dist/flowbite.min.js"></script>
+    <script src="/assets/tinymce/js/tinymce/tinymce.min.js"></script>
+    <!-- <script src="https://cdn.tiny.cloud/1/hxg2s74rz0j3b5nuvdfw6db9ovcekysr7hos85l9bz3a3rp5/tinymce/8/tinymce.min.js" referrerpolicy="origin" crossorigin="anonymous"></script> -->
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            if (typeof CKEDITOR !== "undefined") {
-                CKEDITOR.replace("content", {
-                    height: 300,
-                    toolbarGroups: [
-                        { name: "basicstyles", groups: ["basicstyles"] },
-                        { name: "paragraph", groups: ["list", "blocks"] },
-                        { name: "links" },
-                        { name: "styles" },
-                        { name: "colors" },
-                        { name: "clipboard", groups: ["clipboard", "undo"] },
-                    ],
-                    removeButtons: "Image,Flash,Table,HorizontalRule,SpecialChar"
-                });
+            // Initialize TinyMCE on textarea with id="content"
+            if (typeof tinymce !== "undefined") {
+                tinymce.init({
+                    selector: '#content', // Target textarea with id="content"
 
+                    // Height
+                    height: 400,
+
+                    // Menubar
+                    menubar: false,
+
+                    // Plugins
+                    plugins: [
+                        'advlist', 'autolink', 'lists', 'link', 'charmap', 'preview',
+                        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                        'insertdatetime', 'table', 'help', 'wordcount'
+                    ],
+
+                    // Content style
+                    content_style: 'body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size:14px }',
+
+                    // Paste settings (clean paste dari Word/Google Docs)
+                    paste_as_text: false,
+                    paste_enable_default_filters: true,
+
+                    // Branding
+                    branding: false, // Remove "Powered by TinyMCE"
+
+                    // Promotion (remove upgrade message)
+                    promotion: false,
+
+                    // Setup callback (optional)
+                    setup: function (editor) {
+                        editor.on('init', function () {
+                            console.log('TinyMCE initialized successfully');
+                        });
+                    }
+                });
             }
         });
     </script>

@@ -48,7 +48,7 @@ $cartQty = $_SESSION['cart']['total_qty'] ?? 0;
                             class="bg-neutral-50 border border-neutral-200 rounded-xl shadow-xl border border-neutral-200 overflow-hidden w-[600px]">
                             <div class="grid grid-cols-2 divide-x divide-neutral-200">
                                 <div class="p-3">
-                                    <h3 class="text-xs font-semibold text-neutral-500 uppercase px-3 py-2 mb-4">
+                                    <h3 class="text-xs font-semibold text-neutral-500 capitalize px-3 py-2 mb-4">
                                         By
                                         Category</h3>
                                     <div class="space-y-1">
@@ -58,10 +58,10 @@ $cartQty = $_SESSION['cart']['total_qty'] ?? 0;
                                                     class="flex items-center gap-3 p-1 rounded-lg hover:bg-black transition-colors group">
                                                     <?php if (!empty($cat['icon']) && file_exists(ROOT_PATH . '/storage/icons/' . $cat['icon'])): ?>
                                                         <div
-                                                            class="flex-shrink-0 w-10 h-10 bg-neutral-100 rounded-md flex items-center justify-center group-hover:bg-white transition-colors">
+                                                            class="flex-shrink-0 w-10 h-10 bg-neutral-100 rounded-md flex items-center justify-center group-hover:bg-white transition-colors overflow-hidden">
                                                             <img src="/storage/icons/<?= htmlspecialchars($cat['icon']) ?>"
                                                                 alt="<?= htmlspecialchars($cat['title']) ?>"
-                                                                class="w-6 h-6 object-contain">
+                                                                class="w-full aspect-square object-cover">
                                                         </div>
                                                     <?php endif; ?>
                                                     <div class="flex-1 min-w-0">
@@ -69,8 +69,6 @@ $cartQty = $_SESSION['cart']['total_qty'] ?? 0;
                                                             class="text-sm font-semibold text-neutral-900 capitalize group-hover:text-neutral-300 transition-all duration-200">
                                                             <?= htmlspecialchars($cat['title']) ?>
                                                         </p>
-                                                        <span
-                                                            class="text-xs tracking-tight text-neutral-400 line-clamp-1"><?= htmlspecialchars($cat['description']) ?></span>
                                                     </div>
                                                 </a>
                                             <?php endforeach; ?>
@@ -78,10 +76,10 @@ $cartQty = $_SESSION['cart']['total_qty'] ?? 0;
                                     </div>
                                 </div>
                                 <div class="p-3">
-                                    <h3 class="text-xs font-semibold text-neutral-500 uppercase px-3 py-2 mb-4">
+                                    <h3 class="text-xs font-semibold text-neutral-500 capitalize px-3 py-2 mb-4">
                                         By
                                         Gender</h3>
-                                    <div class="space-y-1">
+                                    <div class="space-y-1 pb-4">
                                         <?php if (!empty($navGenders)): ?>
                                             <?php foreach ($navGenders as $gender): ?>
                                                 <a href="/shop/<?= htmlspecialchars($gender['slug']) ?>"
@@ -220,7 +218,7 @@ $cartQty = $_SESSION['cart']['total_qty'] ?? 0;
                                         </svg>
                                     </button>
                                     <el-disclosure id="products" hidden class="mt-2 block space-y-2">
-                                        <h3 class="text-xs py-2 pr-3 pl-6 font-semibold text-neutral-500 uppercase">
+                                        <h3 class="text-xs py-2 pr-3 pl-6 font-semibold text-neutral-500 capitalize">
                                             By
                                             Category</h3>
                                         <?php if (!empty($navCategories)): ?>
@@ -232,7 +230,7 @@ $cartQty = $_SESSION['cart']['total_qty'] ?? 0;
                                             <?php endforeach; ?>
                                         <?php endif; ?>
 
-                                        <h3 class="text-xs py-2 pr-3 pl-6 font-semibold text-neutral-500 uppercase">
+                                        <h3 class="text-xs py-2 pr-3 pl-6 font-semibold text-neutral-500 capitalize">
                                             By
                                             Gender</h3>
                                         <?php if (!empty($navGenders)): ?>

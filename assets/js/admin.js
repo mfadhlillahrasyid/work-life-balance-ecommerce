@@ -30,7 +30,106 @@ document.addEventListener("DOMContentLoaded", () => {
   }, 3000);
 });
 
-// Post Select Dropdown
+// Password Toogle Show/Hidden Form
+document.addEventListener("DOMContentLoaded", () => {
+  const toggleBtn = document.getElementById("togglePasswordBtn");
+  const toggleLabel = document.getElementById("togglePasswordLabel");
+  const fields = document.getElementById("passwordFields");
+  const passwordInput = document.getElementById("passwordInput");
+  const passwordConfirmInput = document.getElementById("passwordConfirmInput");
+
+  if (!toggleBtn || !fields) return;
+
+  let isOpen = false;
+
+  toggleBtn.addEventListener("click", () => {
+    isOpen = !isOpen;
+
+    if (isOpen) {
+      fields.classList.remove("hidden");
+      fields.classList.add("grid");
+      toggleLabel.textContent = "Hide";
+      toggleBtn.classList.replace("bg-indigo-50", "bg-red-50");
+      toggleBtn.classList.replace("border-indigo-200", "border-red-200");
+      toggleBtn.classList.replace("text-indigo-700", "text-red-600");
+      toggleBtn.classList.replace("hover:bg-indigo-100", "hover:bg-red-100");
+    } else {
+      fields.classList.add("hidden");
+      fields.classList.remove("grid");
+      toggleLabel.textContent = "Change Password";
+      toggleBtn.classList.replace("bg-red-50", "bg-indigo-50");
+      toggleBtn.classList.replace("border-red-200", "border-indigo-200");
+      toggleBtn.classList.replace("text-red-600", "text-indigo-700");
+      toggleBtn.classList.replace("hover:bg-red-100", "hover:bg-indigo-100");
+
+      // Clear input saat di-hide agar tidak terkirim ke server
+      passwordInput.value = "";
+      passwordConfirmInput.value = "";
+    }
+  });
+});
+
+// Users Select Dropdown
+document.addEventListener("DOMContentLoaded", () => {
+  const trigger = document.getElementById("roleTrigger");
+  const dropdown = document.getElementById("roleDropdown");
+  const selected = document.getElementById("selectedRole");
+  const input = document.getElementById("roleInput");
+
+  if (!trigger || !dropdown || !selected || !input) return;
+
+  // Toggle dropdown
+  trigger.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropdown.classList.toggle("hidden");
+  });
+
+  // Pilih option
+  dropdown.querySelectorAll(".role-option").forEach((option) => {
+    option.addEventListener("click", () => {
+      const value = option.dataset.value;
+      const label = option.dataset.label;
+
+      input.value = value;
+      selected.textContent = label;
+
+      selected.classList.remove("text-gray-500");
+      selected.classList.add("text-gray-800");
+
+      // Update active state visual
+      dropdown.querySelectorAll(".role-option").forEach((opt) => {
+        opt.classList.remove("bg-indigo-50");
+        opt
+          .querySelector("p")
+          .classList.remove("font-semibold", "text-indigo-700");
+      });
+      option.classList.add("bg-indigo-50");
+      option
+        .querySelector("p")
+        .classList.add("font-semibold", "text-indigo-700");
+
+      dropdown.classList.add("hidden");
+    });
+  });
+
+  // Tutup kalau klik di luar
+  document.addEventListener("click", (e) => {
+    if (!trigger.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add("hidden");
+    }
+  });
+
+  // Tutup dengan Escape
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      dropdown.classList.add("hidden");
+      trigger.focus();
+    }
+  });
+});
+
+// Post Dropdown
 document.addEventListener("DOMContentLoaded", () => {
   const trigger = document.getElementById("categoryTrigger");
   const dropdown = document.getElementById("categoryDropdown");
@@ -47,18 +146,45 @@ document.addEventListener("DOMContentLoaded", () => {
 
   dropdown.querySelectorAll(".category-option").forEach((option) => {
     option.addEventListener("click", () => {
-      input.value = option.dataset.value; // UUID
-      selected.textContent = option.dataset.label; // TITLE
+      input.value = option.dataset.value;
+      selected.textContent = option.dataset.label;
 
       selected.classList.remove("text-gray-500");
       selected.classList.add("text-gray-800");
+
+      dropdown.querySelectorAll(".category-option").forEach((opt) => {
+        opt.classList.remove("bg-indigo-50");
+        opt
+          .querySelector("p")
+          .classList.remove("font-semibold", "text-indigo-700");
+      });
+
+      option.classList.add("bg-indigo-50");
+      option
+        .querySelector("p")
+        .classList.add("font-semibold", "text-indigo-700");
 
       dropdown.classList.add("hidden");
     });
   });
 
-  document.addEventListener("click", () => {
-    dropdown.classList.add("hidden");
+  // ── Set active state on page load ────────────────────────────────────────
+  const currentValue = input.value;
+  if (currentValue) {
+    dropdown.querySelectorAll(".category-option").forEach((opt) => {
+      if (opt.dataset.value === currentValue) {
+        opt.classList.add("bg-indigo-50");
+        opt
+          .querySelector("p")
+          .classList.add("font-semibold", "text-indigo-700");
+      }
+    });
+  }
+
+  document.addEventListener("click", (e) => {
+    if (!trigger.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add("hidden");
+    }
   });
 });
 
@@ -84,15 +210,40 @@ document.addEventListener("DOMContentLoaded", () => {
         label.classList.add("text-gray-800");
 
         input.value = opt.dataset.value;
+
+        // Reset semua option
+        dropdown.querySelectorAll(".select-option").forEach((o) => {
+          o.classList.remove("bg-indigo-50");
+          o.querySelector("p").classList.remove(
+            "font-semibold",
+            "text-indigo-700",
+          );
+        });
+
+        // Set active option
+        opt.classList.add("bg-indigo-50");
+        opt
+          .querySelector("p")
+          .classList.add("font-semibold", "text-indigo-700");
+
         dropdown.classList.add("hidden");
       });
     });
   });
 
-  document.addEventListener("click", () => {
-    document
-      .querySelectorAll(".select-dropdown")
-      .forEach((d) => d.classList.add("hidden"));
+  document.addEventListener("click", (e) => {
+    document.querySelectorAll("[data-select]").forEach((wrapper) => {
+      const trigger = wrapper.querySelector(".select-trigger");
+      const dropdown = wrapper.querySelector(".select-dropdown");
+      if (
+        trigger &&
+        dropdown &&
+        !trigger.contains(e.target) &&
+        !wrapper.contains(e.target)
+      ) {
+        dropdown.classList.add("hidden");
+      }
+    });
   });
 });
 

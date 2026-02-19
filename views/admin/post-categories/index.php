@@ -71,8 +71,6 @@ ob_start();
                     </thead>
                     <tbody>
                         <?php foreach ($categories as $category): ?>
-                            <?php if (!empty($category['deleted_at']))
-                                continue; ?>
                             <tr class="bg-neutral-primary-soft text-neutral-600 border-b last:border-b-0">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <?= htmlspecialchars($category['title']) ?>

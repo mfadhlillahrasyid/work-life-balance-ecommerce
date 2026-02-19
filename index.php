@@ -32,6 +32,7 @@ require_once __DIR__ . '/app/Controllers/Customer/DashboardController.php';
 require_once __DIR__ . '/app/Controllers/Customer/AuthController.php';
 
 require_once __DIR__ . '/app/Controllers/Admin/AuthController.php';
+require_once __DIR__ . '/app/Controllers/Admin/UserController.php';
 require_once __DIR__ . '/app/Controllers/Admin/DashboardController.php';
 require_once __DIR__ . '/app/Controllers/Admin/PostCategoryController.php';
 require_once __DIR__ . '/app/Controllers/Admin/ProductCategoryController.php';

@@ -30,7 +30,7 @@ ob_start();
                         <tr>
                             <th scope="col" class="px-6 py-4 font-medium">
                                 <div class="flex items-center">
-                                    Category
+                                    Gender
                                     <a href="#">
                                         <svg class="w-4 h-4 ms-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
                                             width="24" height="24" fill="none" viewBox="0 0 24 24">
@@ -71,11 +71,22 @@ ob_start();
                     </thead>
                     <tbody>
                         <?php foreach ($genders as $gender): ?>
-                            <?php if (!empty($gender['deleted_at']))
-                                continue; ?>
                             <tr class="bg-neutral-primary-soft text-neutral-600 border-b last:border-b-0">
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <?= htmlspecialchars($gender['title']) ?>
+                                    <div class="flex items-center gap-4">
+                                        <?php if (!empty($gender['banner'])): ?>
+                                            <img src="/storage/banners/<?= htmlspecialchars($gender['banner']) ?>"
+                                                alt="<?= htmlspecialchars($gender['title']) ?>"
+                                                class="w-11 h-11 object-cover aspect-square rounded-md border shadow-lg shadow-neutral-400/30"
+                                                loading="lazy">
+                                        <?php else: ?>
+                                            <div
+                                                class="w-10 h-10 flex items-center justify-center rounded-md bg-gray-100 text-gray-400 text-xs border">
+                                                —
+                                            </div>
+                                        <?php endif; ?>
+                                        <?= htmlspecialchars($gender['title']) ?>
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <?= htmlspecialchars(
@@ -93,13 +104,12 @@ ob_start();
                                             href="/admin/genders/<?= $gender['slug_uuid'] ?>/edit">
                                             Edit
                                         </a>
-                                        <form method="post"
-                                            action="/admin/genders/<?= $gender['slug_uuid'] ?>/delete"
+                                        <form method="post" action="/admin/genders/<?= $gender['slug_uuid'] ?>/delete"
                                             class="inline">
                                             <input type="hidden" name="id" value="<?= $gender['slug_uuid'] ?>">
                                             <button
                                                 class="py-1.5 px-2.5 inline-flex items-center gap-x-2 text-xs font-medium rounded-lg border border-red-300 bg-red-100 text-red-800 hover:bg-red-200 focus:outline-hidden focus:bg-red-200 disabled:opacity-50 disabled:pointer-events-none"
-                                                onclick="return confirm('Delete this Category ?')">
+                                                onclick="return confirm('Delete this Gender ?')">
                                                 Delete
                                             </button>
                                         </form>

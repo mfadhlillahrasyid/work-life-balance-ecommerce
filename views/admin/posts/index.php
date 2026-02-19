@@ -95,9 +95,8 @@ ob_start();
                     </thead>
                     <tbody>
                         <?php foreach ($posts as $post): ?>
-                            <?php if (!empty($post['deleted_at']))
-                                continue; ?>
                             <tr class="bg-neutral-primary-soft text-neutral-600 border-b last:border-b-0">
+
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center gap-4">
                                         <?php if (!empty($post['banner'])): ?>
@@ -108,45 +107,27 @@ ob_start();
                                         <?php else: ?>
                                             <div
                                                 class="w-10 h-10 flex items-center justify-center rounded-md bg-gray-100 text-gray-400 text-xs border">
-                                                —
+                                                -
                                             </div>
                                         <?php endif; ?>
 
-                                        <?= htmlspecialchars(
+                                        <span><?= htmlspecialchars(
                                             mb_strlen($post['title'], 'UTF-8') > 50
                                             ? mb_substr($post['title'], 0, 50, 'UTF-8') . '...'
                                             : $post['title']
-                                        ) ?>
+                                        ) ?></span>
                                     </div>
                                 </td>
 
-                                <?php
-                                $categoryMap = [];
-                                foreach ($categories as $c) {
-                                    if (!empty($c['deleted_at']))
-                                        continue;
-                                    $categoryMap[$c['id']] = $c['title'];
-                                }
-                                ?>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span
                                         class="text-xs text-gray-600 bg-gray-100 border border-gray-200 font-semibold py-1 px-2 rounded-md">
-                                        <?php
-                                        // lookup category title
-                                        $catTitle = '-';
-                                        foreach (json_read('post-categories.json') as $c) {
-                                            if ($c['id'] === $post['post_category_id']) {
-                                                $catTitle = $c['title'];
-                                                break;
-                                            }
-                                        }
-                                        echo htmlspecialchars($catTitle);
-                                        ?>
+                                        <?= htmlspecialchars($post['category_name'] ?? '-') ?>
                                     </span>
                                 </td>
 
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <?php if (!empty($post['status'])): ?>
+                                    <?php if ((int) $post['status'] === 1): ?>
                                         <span
                                             class="inline-flex items-center rounded-md bg-indigo-100 border border-indigo-300 px-2 py-1 text-xs font-semibold text-indigo-700">
                                             Published
@@ -158,40 +139,39 @@ ob_start();
                                         </span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="table-content">
+
+                                <td class="px-6 py-4">
+                                    <div class="text-gray-500">
                                         <?= htmlspecialchars(
-                                            mb_strimwidth(
-                                                strip_tags($post['content']),
-                                                0,
-                                                80,
-                                                '...'
-                                            ),
+                                            mb_strimwidth(strip_tags($post['content'] ?? ''), 0, 80, '...'),
                                             ENT_QUOTES,
                                             'UTF-8'
                                         ) ?>
                                     </div>
                                 </td>
+
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <?= date('D, d M Y', strtotime($post['created_at'])) ?>
                                 </td>
+
                                 <td class="px-6 py-4 text-right">
                                     <div class="flex justify-end items-center gap-1">
-                                        <a class="py-1.5 px-2.5 inline-flex items-center gap-x-2 text-xs font-medium rounded-lg border border-gray-300 bg-gray-100 text-gray-800 hover:bg-gray-200 focus:outline-hidden focus:bg-gray-200 disabled:opacity-50 disabled:pointer-events-none"
-                                            href="/admin/posts/<?= $post['slug_uuid'] ?>/edit">
+                                        <a class="py-1.5 px-2.5 inline-flex items-center gap-x-2 text-xs font-medium rounded-lg border border-gray-300 bg-gray-100 text-gray-800 hover:bg-gray-200"
+                                            href="/admin/posts/<?= htmlspecialchars($post['slug_uuid']) ?>/edit">
                                             Edit
                                         </a>
-                                        <form method="post" action="/admin/posts/<?= $post['slug_uuid'] ?>/delete"
+                                        <form method="post"
+                                            action="/admin/posts/<?= htmlspecialchars($post['slug_uuid']) ?>/delete"
                                             class="inline">
-                                            <input type="hidden" name="id" value="<?= $post['slug_uuid'] ?>">
-                                            <button
-                                                class="py-1.5 px-2.5 inline-flex items-center gap-x-2 text-xs font-medium rounded-lg border border-red-300 bg-red-100 text-red-800 hover:bg-red-200 focus:outline-hidden focus:bg-red-200 disabled:opacity-50 disabled:pointer-events-none"
-                                                onclick="return confirm('Delete this Category ?')">
+                                            <button type="submit"
+                                                class="py-1.5 px-2.5 inline-flex items-center gap-x-2 text-xs font-medium rounded-lg border border-red-300 bg-red-100 text-red-800 hover:bg-red-200"
+                                                onclick="return confirm('Hapus post ini?')">
                                                 Delete
                                             </button>
                                         </form>
                                     </div>
                                 </td>
+
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

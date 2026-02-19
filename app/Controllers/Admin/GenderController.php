@@ -1,165 +1,296 @@
 <?php
+// app/Controllers/Admin/GenderController.php
 
 namespace App\Controllers\Admin;
 
 class GenderController
 {
-    public static function index()
+    // =========================================================================
+    // INDEX
+    // =========================================================================
+    public static function index(): void
     {
         admin_auth();
 
-        $allGenders = json_read('genders.json');
+        $page   = max(1, (int) ($_GET['page'] ?? 1));
+        $search = trim($_GET['search'] ?? '');
 
-        // ===== FILTER & SORT (PRODUCTION RULE) =====
-        $allGenders = array_values(array_filter(
-            $allGenders,
-            fn($c) => empty($c['deleted_at'])
-        ));
+        $sql    = "SELECT id, title, description, banner, slug_uuid, created_at
+                   FROM genders
+                   WHERE deleted_at IS NULL";
+        $params = [];
 
-        usort(
-            $allGenders,
-            fn($a, $b) =>
-            strtotime($b['created_at']) <=> strtotime($a['created_at'])
-        );
+        if ($search !== '') {
+            $sql              .= " AND title LIKE :search";
+            $params[':search'] = '%' . $search . '%';
+        }
 
-        // ===== PAGINATION =====
-        $page = (int) ($_GET['page'] ?? 1);
+        $sql .= " ORDER BY created_at DESC";
+
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+        $allGenders = $stmt->fetchAll();
 
         $pagination = paginate($allGenders, 10, $page);
 
-        return view(
-            'admin/genders/index',
-            [
-                'genders' => $pagination['data'],
-                'pagination' => $pagination['meta'],
-            ]
-        );
+        view('admin/genders/index', [
+            'genders'    => $pagination['data'],
+            'pagination' => $pagination['meta'],
+            'search'     => $search,
+        ]);
     }
 
-    public static function create()
+    // =========================================================================
+    // CREATE
+    // =========================================================================
+    public static function create(): void
     {
         admin_auth();
 
-        return view(
-            'admin/genders/create'
-        );
+        view('admin/genders/create');
     }
 
-    public static function store()
+    // =========================================================================
+    // STORE
+    // =========================================================================
+    public static function store(): void
     {
         admin_auth();
 
-        $genders = json_read('genders.json');
+        $title       = trim($_POST['title'] ?? '');
+        $description = trim($_POST['description'] ?? '');
 
-        $uuid = uuid_v4();
+        // ── Validasi ──────────────────────────────────────────────────────────
+        $errors = [];
 
-        $genders[] = [
-            'id' => $uuid,
-            'title' => $_POST['title'],
-            'description' => $_POST['description'],
-            'slug' => slugify($_POST['title']),
-            'slug_uuid' => slugify($_POST['title']) . '-' . $uuid,
-            'created_at' => date('Y-m-d H:i:s'),
-            'deleted_at' => null
-        ];
+        if ($title === '') {
+            $errors[] = 'Title wajib diisi.';
+        }
 
-        json_write('genders.json', $genders);
+        if ($description === '') {
+            $errors[] = 'Description wajib diisi.';
+        }
 
+        if (!empty($errors)) {
+            flash('admin_error', implode(' ', $errors));
+            redirect('/admin/genders/create');
+        }
 
-        $_SESSION['success'] = 'Category created successfully';
-        return redirect('/admin/genders');
-    }
+        // ── Cek duplikat slug ─────────────────────────────────────────────────
+        $slug  = slugify($title);
+        $check = db()->prepare("SELECT COUNT(*) FROM genders WHERE slug = :slug AND deleted_at IS NULL");
+        $check->execute([':slug' => $slug]);
+        if ((int) $check->fetchColumn() > 0) {
+            flash('admin_error', 'Gender dengan title tersebut sudah ada.');
+            redirect('/admin/genders/create');
+        }
 
-    public static function edit(string $slugUuid)
-    {
-        admin_auth();
-
-        $uuid = uuid_from_slug($slugUuid);
-        $genders = json_read('genders.json');
-        $gender = null;
-
-        foreach ($genders as $c) {
-            if (
-                empty($c['deleted_at']) &&
-                $c['id'] === $uuid
-            ) {
-                $gender = $c;
-                break;
+        // ── Upload banner (opsional) ──────────────────────────────────────────
+        $banner = null;
+        if (!empty($_FILES['banner']['name'])) {
+            try {
+                $banner = upload_image(
+                    $_FILES['banner'],
+                    ROOT_PATH . '/storage/banners',
+                    5 // max 5MB
+                );
+            } catch (\Exception $e) {
+                flash('admin_error', $e->getMessage());
+                redirect('/admin/genders/create');
             }
         }
+
+        // ── Insert ────────────────────────────────────────────────────────────
+        $uuid     = uuid_v4();
+        $slugUuid = $slug . '-' . $uuid;
+
+        $stmt = db()->prepare("
+            INSERT INTO genders (title, description, banner, slug, slug_uuid, created_at)
+            VALUES (:title, :description, :banner, :slug, :slug_uuid, :created_at)
+        ");
+
+        $stmt->execute([
+            ':title'       => $title,
+            ':description' => $description,
+            ':banner'      => $banner,
+            ':slug'        => $slug,
+            ':slug_uuid'   => $slugUuid,
+            ':created_at'  => date('Y-m-d H:i:s'),
+        ]);
+
+        flash('admin_success', 'Gender berhasil ditambahkan.');
+        redirect('/admin/genders');
+    }
+
+    // =========================================================================
+    // EDIT
+    // =========================================================================
+    public static function edit(string $slugUuid): void
+    {
+        admin_auth();
+
+        $stmt = db()->prepare("
+            SELECT id, title, description, banner, slug, slug_uuid
+            FROM genders
+            WHERE slug_uuid = :slug_uuid
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':slug_uuid' => $slugUuid]);
+        $gender = $stmt->fetch();
 
         if (!$gender) {
-            $_SESSION['flash_error'] = 'Gender not found';
-            return redirect('/admin/genders');
+            flash('admin_error', 'Gender tidak ditemukan.');
+            redirect('/admin/genders');
         }
 
-        return view(
-            'admin/genders/edit',
-            compact('gender')
-        );
+        view('admin/genders/edit', compact('gender'));
     }
 
-    public static function update(string $slugUuid)
+    // =========================================================================
+    // UPDATE
+    // =========================================================================
+    public static function update(string $slugUuid): void
     {
         admin_auth();
 
-        $uuid = uuid_from_slug($slugUuid);
-        $genders = json_read('genders.json');
-        $updated = false;
+        $title       = trim($_POST['title'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $removeBanner = ($_POST['remove_banner'] ?? '0') === '1';
 
-        foreach ($genders as &$c) {
-            if (
-                empty($c['deleted_at']) &&
-                $c['id'] === $uuid
-            ) {
-                $c['title'] = $_POST['title'];
-                $c['description'] = $_POST['description'];
+        // ── Validasi ──────────────────────────────────────────────────────────
+        $errors = [];
 
-                // slug boleh berubah, UUID TETAP
-                $c['slug'] = slugify($_POST['title']);
-                $c['slug_uuid'] = $c['slug'] . '-' . $uuid;
+        if ($title === '') {
+            $errors[] = 'Title wajib diisi.';
+        }
 
-                $updated = true;
-                break;
+        if ($description === '') {
+            $errors[] = 'Description wajib diisi.';
+        }
+
+        if (!empty($errors)) {
+            flash('admin_error', implode(' ', $errors));
+            redirect('/admin/genders/' . $slugUuid . '/edit');
+        }
+
+        // ── Ambil data lama ───────────────────────────────────────────────────
+        $stmt = db()->prepare("
+            SELECT id, banner FROM genders
+            WHERE slug_uuid = :slug_uuid AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->execute([':slug_uuid' => $slugUuid]);
+        $gender = $stmt->fetch();
+
+        if (!$gender) {
+            flash('admin_error', 'Gender tidak ditemukan.');
+            redirect('/admin/genders');
+        }
+
+        // ── Cek duplikat slug (exclude diri sendiri) ──────────────────────────
+        $newSlug = slugify($title);
+        $check   = db()->prepare("
+            SELECT COUNT(*) FROM genders
+            WHERE slug = :slug AND id != :id AND deleted_at IS NULL
+        ");
+        $check->execute([':slug' => $newSlug, ':id' => $gender['id']]);
+        if ((int) $check->fetchColumn() > 0) {
+            flash('admin_error', 'Gender dengan title tersebut sudah ada.');
+            redirect('/admin/genders/' . $slugUuid . '/edit');
+        }
+
+        // ── Handle banner ─────────────────────────────────────────────────────
+        $bannerPath = $gender['banner']; // default: pakai banner lama
+
+        // Hapus banner
+        if ($removeBanner && $bannerPath !== null) {
+            $oldFile = ROOT_PATH . '/storage/banners/' . $bannerPath;
+            if (file_exists($oldFile)) {
+                unlink($oldFile);
+            }
+            $bannerPath = null;
+        }
+
+        // Upload banner baru (replace jika ada yang lama)
+        if (!empty($_FILES['banner']['name'])) {
+            try {
+                $newBanner = upload_image(
+                    $_FILES['banner'],
+                    ROOT_PATH . '/storage/banners',
+                    5
+                );
+
+                // Hapus banner lama kalau ada
+                if ($bannerPath !== null) {
+                    $oldFile = ROOT_PATH . '/storage/banners/' . $bannerPath;
+                    if (file_exists($oldFile)) {
+                        unlink($oldFile);
+                    }
+                }
+
+                $bannerPath = $newBanner;
+
+            } catch (\Exception $e) {
+                flash('admin_error', $e->getMessage());
+                redirect('/admin/genders/' . $slugUuid . '/edit');
             }
         }
 
-        if ($updated) {
-            json_write('genders.json', $genders);
-            $_SESSION['flash_success'] = 'Gender updated';
-        } else {
-            $_SESSION['flash_error'] = 'Update failed';
-        }
+        // ── Update (UUID tetap, slug boleh berubah) ───────────────────────────
+        $uuidPart    = substr($slugUuid, -36);
+        $newSlugUuid = $newSlug . '-' . $uuidPart;
 
-        return redirect('/admin/genders');
+        $stmt = db()->prepare("
+            UPDATE genders
+            SET title       = :title,
+                description = :description,
+                banner      = :banner,
+                slug        = :slug,
+                slug_uuid   = :slug_uuid,
+                updated_at  = :updated_at
+            WHERE id = :id
+        ");
+
+        $stmt->execute([
+            ':title'       => $title,
+            ':description' => $description,
+            ':banner'      => $bannerPath,
+            ':slug'        => $newSlug,
+            ':slug_uuid'   => $newSlugUuid,
+            ':updated_at'  => date('Y-m-d H:i:s'),
+            ':id'          => $gender['id'],
+        ]);
+
+        flash('admin_success', 'Gender berhasil diupdate.');
+        redirect('/admin/genders');
     }
 
-    public static function destroy(string $slugUuid)
+    // =========================================================================
+    // DESTROY (Soft Delete)
+    // =========================================================================
+    public static function destroy(string $slugUuid): void
     {
         admin_auth();
 
-        $genders = json_read('genders.json');
-        $deleted = false;
+        $stmt = db()->prepare("
+            UPDATE genders
+            SET deleted_at = :deleted_at
+            WHERE slug_uuid = :slug_uuid
+              AND deleted_at IS NULL
+        ");
 
-        foreach ($genders as &$c) {
-            if (
-                empty($c['deleted_at']) &&
-                $c['slug_uuid'] === $slugUuid
-            ) {
-                $c['deleted_at'] = date('Y-m-d H:i:s');
-                $deleted = true;
-                break;
-            }
-        }
+        $stmt->execute([
+            ':deleted_at' => date('Y-m-d H:i:s'),
+            ':slug_uuid'  => $slugUuid,
+        ]);
 
-        if ($deleted) {
-            json_write('genders.json', $genders);
-            $_SESSION['flash_success'] = 'Category deleted';
+        if ($stmt->rowCount() > 0) {
+            flash('admin_success', 'Gender berhasil dihapus.');
         } else {
-            $_SESSION['flash_error'] = 'Category not found';
+            flash('admin_error', 'Gender tidak ditemukan.');
         }
 
-        return redirect('/admin/genders');
+        redirect('/admin/genders');
     }
-
 }
