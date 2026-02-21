@@ -33,25 +33,142 @@ ob_start();
 
             <div class="w-full relative overflow-x-auto bg-white shadow-xs rounded-xl border border-neutral-200">
                 <table class="w-full text-xs sm:text-sm text-left">
+
                     <thead class="text-sm text-body bg-neutral-100 border-b border-default-medium">
                         <tr>
-                            <th scope="col" class="px-6 py-4 font-medium">Images</th>
-                            <th scope="col" class="px-6 py-4 font-medium">Title</th>
-                            <th scope="col" class="px-6 py-4 font-medium">Category</th>
-                            <th scope="col" class="px-6 py-3 font-medium">Gender</th>
-                            <th scope="col" class="px-6 py-3 font-medium">Color Variant</th>
-                            <th scope="col" class="px-6 py-3 font-medium">Size Chart</th>
-                            <th scope="col" class="px-6 py-3 font-medium">Stock</th>
-                            <th scope="col" class="px-6 py-3 font-medium">Status</th>
-                            <th scope="col" class="px-6 py-3 font-medium">Created At</th>
-                            <th scope="col" class="px-6 py-3 font-medium"><span class="sr-only">Actions</span></th>
+                            <th scope="col" class="px-6 py-4 font-medium">
+                                <div class="flex items-center">
+                                    Images
+                                    <a href="#">
+                                        <svg class="w-4 h-4 ms-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                            width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                stroke-width="2" d="m8 15 4 4 4-4m0-6-4-4-4 4" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </th>
+                            <th scope="col" class="px-6 py-4 font-medium">
+                                <div class="flex items-center">
+                                    Title
+                                    <a href="#">
+                                        <svg class="w-4 h-4 ms-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                            width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                stroke-width="2" d="m8 15 4 4 4-4m0-6-4-4-4 4" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </th>
+                            <th scope="col" class="px-6 py-4 font-medium">
+                                <div class="flex items-center">
+                                    Category
+                                    <a href="#">
+                                        <svg class="w-4 h-4 ms-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                            width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                stroke-width="2" d="m8 15 4 4 4-4m0-6-4-4-4 4" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </th>
+                            <th scope="col" class="px-6 py-3 font-medium">
+                                <div class="flex items-center">
+                                    Gender
+                                    <a href="#">
+                                        <svg class="w-4 h-4 ms-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                            width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                stroke-width="2" d="m8 15 4 4 4-4m0-6-4-4-4 4" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </th>
+
+                            <th scope="col" class="px-6 py-3 font-medium">
+                                <div class="flex items-center">
+                                    Color Variant
+                                    <a href="#">
+                                        <svg class="w-4 h-4 ms-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                            width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                stroke-width="2" d="m8 15 4 4 4-4m0-6-4-4-4 4" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </th>
+
+                            <th scope="col" class="px-6 py-3 font-medium">
+                                <div class="flex items-center">
+                                    Size Chart
+                                    <a href="#">
+                                        <svg class="w-4 h-4 ms-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                            width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                stroke-width="2" d="m8 15 4 4 4-4m0-6-4-4-4 4" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </th>
+
+                            <th scope="col" class="px-6 py-3 font-medium">
+                                <div class="flex items-center">
+                                    Stock
+                                    <a href="#">
+                                        <svg class="w-4 h-4 ms-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                            width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                stroke-width="2" d="m8 15 4 4 4-4m0-6-4-4-4 4" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </th>
+
+                            <th scope="col" class="px-6 py-3 font-medium">
+                                <div class="flex items-center">
+                                    Status
+                                    <a href="#">
+                                        <svg class="w-4 h-4 ms-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                            width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                stroke-width="2" d="m8 15 4 4 4-4m0-6-4-4-4 4" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </th>
+
+                            <th scope="col" class="px-6 py-3 font-medium">
+                                <div class="flex items-center">
+                                    Created At
+                                    <a href="#">
+                                        <svg class="w-4 h-4 ms-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+                                            width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                stroke-width="2" d="m8 15 4 4 4-4m0-6-4-4-4 4" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </th>
+                            <th scope="col" class="px-6 py-3 font-medium">
+                                <span class="sr-only">Edit</span>
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($products)): ?>
                             <tr>
-                                <td colspan="10" class="px-6 py-12 text-center text-sm text-gray-400">
-                                    Belum ada produk.
+                                <td colspan="12" class="px-6 py-12 text-center text-sm text-gray-400">
+                                    <div class="flex flex-col gap-2 items-center justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="1.5" stroke="currentColor" class="size-12">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                                        </svg>
+
+                                        <span class="text-sm sm:text-base font-medium tracking-tight">Data Not
+                                            Available</span>
+                                    </div>
+
                                 </td>
                             </tr>
                         <?php endif; ?>
@@ -93,7 +210,8 @@ ob_start();
                                         $remaining = $variantCount - $totalImages;
                                         ?>
                                         <?php if ($remaining > 0): ?>
-                                            <div class="w-9 h-9 shrink-0 rounded-full -ml-3 flex items-center justify-center bg-gray-200 text-xs font-semibold text-gray-700 border-2 border-white shadow" style="z-index: 10">
+                                            <div class="w-9 h-9 shrink-0 rounded-full -ml-3 flex items-center justify-center bg-gray-200 text-xs font-semibold text-gray-700 border-2 border-white shadow"
+                                                style="z-index: 10">
                                                 +<?= $remaining ?>
                                             </div>
                                         <?php endif; ?>

@@ -8,7 +8,6 @@ use App\Controllers\Front\ShopController;
 use App\Controllers\Front\ArticleController;
 use App\Controllers\Front\CheckoutController;
 use App\Controllers\Front\OrderController;
-use App\Controllers\Api\SearchController;
 
 // ===============================
 // FRONTEND ROUTES
@@ -20,13 +19,6 @@ $routes[] = [
     'pattern' => '#^$#',
     'action' => [HomeController::class, 'index'],
 ];
-
-$routes[] = [
-    'method' => 'GET',
-    'pattern' => '#^api/search$#',
-    'action' => [SearchController::class, 'search']
-];
-
 
 // HOME
 $routes[] = [
@@ -102,19 +94,19 @@ $routes[] = [
 // ==========================================
 $routes[] = [
     'method' => 'GET',
-    'pattern' => '#^checkout$#',
+    'pattern' => '#^cart/checkout$#',
     'action' => [CheckoutController::class, 'index']
 ];
 
 $routes[] = [
     'method' => 'POST',
-    'pattern' => '#^checkout/process$#',
+    'pattern' => '#^cart/checkout/process$#',
     'action' => [CheckoutController::class, 'process']
 ];
 
 $routes[] = [
     'method' => 'POST',
-    'pattern' => '#^checkout/calculate-shipping$#',
+    'pattern' => '#^cart/checkout/calculate-shipping$#',
     'action' => [CheckoutController::class, 'calculateShipping']
 ];
 

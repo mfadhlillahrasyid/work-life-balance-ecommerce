@@ -83,13 +83,13 @@ ob_start();
                 </div>
 
                 <div class="border-b border-neutral-200 p-6 sm:p-8 flex items-center justify-between">
-                    <p class="text-xl sm:text-2xl font-extrabold">
+                    <p id="productPrice" class="text-xl sm:text-2xl font-extrabold">
                         IDR
                         <?= number_format($product['price'], 0, ',', '.') ?>
                     </p>
                     <div class="flex items-center gap-2">
                         <p class="text-xs tracking-tight text-neutral-400">Stock :</p>
-                        <p class="text-xl tracking-tight font-bold text-neutral-800">
+                        <p id="productStock" class="text-xl tracking-tight font-bold text-neutral-800">
                             <?= htmlspecialchars($product['stock']) ?>
                         </p>
                     </div>
@@ -99,7 +99,8 @@ ob_start();
                 <input type="hidden" id="selectedColor">
                 <input type="hidden" id="selectedSize">
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-x sm:divide-y-0 divide-neutral-200 border-b border-neutral-200">
+                <div
+                    class="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-x sm:divide-y-0 divide-neutral-200 border-b border-neutral-200">
                     <?php if (!empty($product['colors'])): ?>
                         <div class="flex flex-col gap-3 p-6 sm:p-8">
                             <p class="text-base tracking-tight font-semibold">Color</p>
@@ -128,7 +129,7 @@ ob_start();
                         </div>
                     <?php endif; ?>
                 </div>
-                
+
                 <div class="flex flex-col sm:flex-row gap-4 p-4 border-b border-neutral-200">
                     <button type="submit" id="addToCartBtn"
                         class="flex-1 bg-black text-white py-4 rounded-xl text-sm sm:text-base font-medium hover:bg-neutral-800">
@@ -152,6 +153,101 @@ ob_start();
         </div>
     </div>
 </div>
+
+<!-- Variants Data -->
+<script>
+    const VARIANTS = <?= json_encode($product['variants']) ?>;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const priceEl = document.getElementById('productPrice');
+        const stockEl = document.getElementById('productStock');
+        const colorBtns = document.querySelectorAll('.variant-color');
+        const sizeBtns = document.querySelectorAll('.variant-size');
+
+        let selectedColor = null;
+        let selectedSize = null;
+
+        // ── Update harga & stock berdasarkan pilihan ──────────────────────────
+        function updateVariantInfo() {
+            if (!selectedColor || !selectedSize) return;
+
+            const variant = VARIANTS.find(
+                v => v.color === selectedColor && v.size === selectedSize
+            );
+
+            if (!variant) {
+                stockEl.textContent = '0';
+                stockEl.classList.add('text-red-600');
+                return;
+            }
+
+            // Update harga
+            priceEl.innerHTML = 'IDR ' + parseInt(variant.price).toLocaleString('id-ID');
+
+            // Update stock
+            stockEl.textContent = variant.stock;
+            stockEl.classList.toggle('text-red-600', parseInt(variant.stock) === 0);
+            stockEl.classList.toggle('text-neutral-800', parseInt(variant.stock) > 0);
+        }
+
+        // ── Filter size yang tersedia berdasarkan color terpilih ──────────────
+        function updateAvailableSizes() {
+            if (!selectedColor) return;
+
+            const availableSizes = VARIANTS
+                .filter(v => v.color === selectedColor && parseInt(v.stock) > 0)
+                .map(v => v.size);
+
+            sizeBtns.forEach(btn => {
+                const size = btn.dataset.size;
+                if (availableSizes.includes(size)) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-30', 'cursor-not-allowed', 'line-through');
+                } else {
+                    btn.disabled = true;
+                    btn.classList.add('opacity-30', 'cursor-not-allowed', 'line-through');
+                    // Reset size jika yang dipilih jadi unavailable
+                    if (selectedSize === size) {
+                        selectedSize = null;
+                        document.getElementById('selectedSize').value = '';
+                        btn.classList.remove('bg-black', 'text-white', 'border-black');
+                    }
+                }
+            });
+        }
+
+        // ── Color click ───────────────────────────────────────────────────────
+        colorBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedColor = btn.dataset.color;
+                document.getElementById('selectedColor').value = selectedColor;
+
+                // Active state
+                colorBtns.forEach(b => b.classList.remove('bg-black', 'text-white', 'border-black'));
+                btn.classList.add('bg-black', 'text-white', 'border-black');
+
+                updateAvailableSizes();
+                updateVariantInfo();
+            });
+        });
+
+        // ── Size click ────────────────────────────────────────────────────────
+        sizeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (btn.disabled) return;
+
+                selectedSize = btn.dataset.size;
+                document.getElementById('selectedSize').value = selectedSize;
+
+                // Active state
+                sizeBtns.forEach(b => b.classList.remove('bg-black', 'text-white', 'border-black'));
+                btn.classList.add('bg-black', 'text-white', 'border-black');
+
+                updateVariantInfo();
+            });
+        });
+    });
+</script>
 
 <?php
 $content = ob_get_clean();

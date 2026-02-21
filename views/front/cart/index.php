@@ -63,25 +63,25 @@ ob_start();
                     <table class="w-full text-sm text-left text-sm sm:text-base">
                         <thead class="text-sm sm:text-base bg-neutral-100 border-b border-neutral-200">
                             <tr>
-                                <th scope="col" class="px-6 py-6 font-medium whitespace-nowrap">
+                                <th scope="col" class="p-4 font-medium whitespace-nowrap">
                                     #
                                 </th>
-                                <th scope="col" class="px-6 py-6 font-medium whitespace-nowrap">
+                                <th scope="col" class="p-4 font-medium whitespace-nowrap">
                                     Product Name
                                 </th>
-                                <th scope="col" class="px-6 py-6 font-medium whitespace-nowrap">
+                                <th scope="col" class="p-4 font-medium whitespace-nowrap">
                                     Color & Variant
                                 </th>
-                                <th scope="col" class="px-6 py-6 font-medium whitespace-nowrap">
+                                <th scope="col" class="p-4 font-medium whitespace-nowrap">
                                     Qty
                                 </th>
-                                <th scope="col" class="px-6 py-6 font-medium whitespace-nowrap">
+                                <th scope="col" class="p-4 font-medium whitespace-nowrap">
                                     Price
                                 </th>
-                                <th scope="col" class="px-6 py-6 font-medium whitespace-nowrap">
+                                <th scope="col" class="p-4 font-medium whitespace-nowrap">
                                     Total
                                 </th>
-                                <th scope="col" class="px-6 py-6 font-medium whitespace-nowrap">
+                                <th scope="col" class="p-4 font-medium whitespace-nowrap">
                                     Option
                                 </th>
                             </tr>
@@ -89,18 +89,18 @@ ob_start();
                         <tbody>
                             <?php foreach ($items as $item): ?>
                                 <tr class="bg-neutral-primary border-b border-neutral-200 last:border-b-0">
-                                    <td scope="row" class="px-6 py-6 whitespace-nowrap">
-                                        <div class="w-18 sm:w-22 aspect-square object-cover rounded-lg overflow-hidden">
+                                    <td scope="row" class="p-4 whitespace-nowrap">
+                                        <div class="w-12 aspect-square object-cover rounded-lg overflow-hidden">
                                             <?php if ($item['image']): ?>
                                                 <img src="/storage/products/<?= htmlspecialchars($item['image']) ?>"
                                                     class="w-full h-full object-cover" loading="lazy">
                                             <?php endif; ?>
                                         </div>
                                     </td>
-                                    <td scope="row" class="px-6 py-6 font-semibold tracking-tight text-base whitespace-nowrap">
+                                    <td scope="row" class="p-4 font-semibold tracking-tight text-sm sm:text-base whitespace-nowrap">
                                         <?= htmlspecialchars($item['title']) ?>
                                     </td>
-                                    <td scope="row" class="px-6 py-6 whitespace-nowrap">
+                                    <td scope="row" class="p-4 whitespace-nowrap">
                                         <div class="flex flex-wrap gap-2 items-center">
                                             <span
                                                 class="bg-neutral-100 py-1 px-2 rounded-md border border-neutral-200 capitalize text-sm">
@@ -112,7 +112,7 @@ ob_start();
                                             </span>
                                         </div>
                                     </td>
-                                    <td scope="row" class="px-6 py-6 whitespace-nowrap">
+                                    <td scope="row" class="p-4 whitespace-nowrap">
                                         <div class="inline-flex items-center border rounded-full overflow-hidden p-1">
                                             <button type="button"
                                                 class="qty-minus w-8 h-8 flex items-center justify-center text-sm sm:text-base font-semibold bg-black/20 hover:bg-indigo-600 text-white rounded-full transition-all duration-300"
@@ -132,15 +132,15 @@ ob_start();
                                             </button>
                                         </div>
                                     </td>
-                                    <td scope="row" class="px-6 py-6 font-semibold text-base whitespace-nowrap">
+                                    <td scope="row" class="p-4 font-semibold text-base whitespace-nowrap">
                                         IDR <?= number_format($item['price'], 0, ',', '.') ?>
                                     </td>
-                                    <td scope="row" class="px-6 py-6 font-semibold text-base whitespace-nowrap"
+                                    <td scope="row" class="p-4 font-semibold text-base whitespace-nowrap"
                                         data-line-subtotal="<?= htmlspecialchars($item['id'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                                         IDR
                                         <?= number_format($item['price'] * $item['qty'], 0, ',', '.') ?>
                                     </td>
-                                    <td scope="row" class="px-6 py-6 whitespace-nowrap">
+                                    <td scope="row" class="p-4 whitespace-nowrap">
                                         <button
                                             class="cart-remove text-red-500 text-sm w-8 h-8 rounded-full hover:bg-red-100 hover:border-red-200 flex items-center justify-center transition-all duration-300"
                                             data-item-id="<?= htmlspecialchars($item['id'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
@@ -169,7 +169,7 @@ ob_start();
                         <span>Subtotal</span>
                         <span id="cartSubtotal">Rp <?= number_format($subtotal, 0, ',', '.') ?></span>
                     </div>
-                    <a href="/checkout" class="block bg-black text-white text-center py-3 rounded-lg">
+                    <a href="/cart/checkout" class="block bg-black text-white text-center py-3 rounded-lg">
                         Proceed to Checkout
                     </a>
                     <?php if (empty($_SESSION['customer'])): ?>

@@ -1,4 +1,5 @@
 <?php
+// app/Controllers/Front/CheckoutController.php
 
 namespace App\Controllers\Front;
 
@@ -6,229 +7,247 @@ use App\Middleware\CustomerAuth;
 
 class CheckoutController
 {
-    /**
-     * Show checkout page (protected)
-     * 
-     * Route: GET /checkout
-     */
-    public static function index()
+    // =========================================================================
+    // INDEX — GET /checkout
+    // =========================================================================
+    public static function index(): void
     {
-        // Require authentication
         CustomerAuth::require();
 
-        // Get cart
         $cart = $_SESSION['cart'] ?? ['items' => [], 'total_qty' => 0];
 
         if (empty($cart['items'])) {
-            $_SESSION['error'] = 'Keranjang belanja kosong';
-            return redirect('/cart');
+            flash('error', 'Keranjang belanja kosong');
+            redirect('/cart');
         }
 
-        // Load products for price calculation
-        $products = json_read('products.json') ?? [];
         $customer = CustomerAuth::customer();
 
-        // Calculate subtotal
-        $items = [];
+        // Ambil data customer dari SQLite
+        $stmtC = db()->prepare("
+            SELECT * FROM customers WHERE slug_uuid = :slug_uuid LIMIT 1
+        ");
+        $stmtC->execute([':slug_uuid' => $customer['slug_uuid']]);
+        $customerData = $stmtC->fetch();
+
+        // Ambil produk dan variant
+        $slugUuids  = array_unique(array_column($cart['items'], 'slug_uuid'));
+        $productMap = self::fetchProductMap($slugUuids);
+        $variantMap = self::fetchVariantMap($slugUuids);
+
+        $items    = [];
         $subtotal = 0;
 
         foreach ($cart['items'] as $cartItem) {
-            foreach ($products as $p) {
-                if ($p['slug_uuid'] === $cartItem['slug_uuid']) {
-                    $lineTotal = $p['price'] * $cartItem['qty'];
-                    $subtotal += $lineTotal;
+            $p = $productMap[$cartItem['slug_uuid']] ?? null;
+            if (!$p) continue;
 
-                    $items[] = [
-                        'slug_uuid' => $p['slug_uuid'],
-                        'title' => $p['title'],
-                        'price' => $p['price'],
-                        'image' => $p['images'][0] ?? null,
-                        'color' => $cartItem['color'],
-                        'size' => strtoupper($cartItem['size']),
-                        'qty' => $cartItem['qty'],
-                        'line_total' => $lineTotal,
-                    ];
-                    break;
-                }
-            }
+            $variantKey  = strtolower($cartItem['color']) . '_' . strtoupper($cartItem['size']);
+            $variantData = $variantMap[$cartItem['slug_uuid']][$variantKey] ?? null;
+            $price       = $variantData ? $variantData['price'] : 0;
+            $lineTotal   = $price * $cartItem['qty'];
+            $subtotal   += $lineTotal;
+
+            $items[] = [
+                'slug_uuid'  => $p['slug_uuid'],
+                'title'      => $p['title'],
+                'price'      => $price,
+                'image'      => $p['thumbnail'],
+                'color'      => $cartItem['color'],
+                'size'       => strtoupper($cartItem['size']),
+                'qty'        => $cartItem['qty'],
+                'line_total' => $lineTotal,
+            ];
         }
 
-        // Get customer data
-        $customers = json_read('customers.json') ?? [];
-        $customerData = null;
-
-        foreach ($customers as $c) {
-            if ($c['uuid'] === $customer['uuid']) {
-                $customerData = $c;
-                break;
-            }
-        }
-
-        return view('front/checkout/index', [
-            'items' => $items,
+        view('front/checkout/index', [
+            'items'    => $items,
             'subtotal' => $subtotal,
             'customer' => $customerData,
         ]);
     }
 
-    /**
-     * Process checkout and create order
-     * 
-     * Route: POST /checkout/process
-     */
-    public static function process()
+    // =========================================================================
+    // PROCESS — POST /checkout/process
+    // =========================================================================
+    public static function process(): void
     {
-        // Require authentication
         CustomerAuth::require();
 
         $customer = CustomerAuth::customer();
-
-        // Validate cart
-        $cart = $_SESSION['cart'] ?? ['items' => [], 'total_qty' => 0];
+        $cart     = $_SESSION['cart'] ?? ['items' => [], 'total_qty' => 0];
 
         if (empty($cart['items'])) {
-            $_SESSION['error'] = 'Keranjang belanja kosong';
-            return redirect('/cart');
+            flash('error', 'Keranjang belanja kosong');
+            redirect('/cart');
         }
 
-        // Get form data
-        $fullname = trim($_POST['fullname'] ?? '');
-        $phone = trim($_POST['phone'] ?? '');
-        $alamat = trim($_POST['alamat'] ?? '');
-        $provinsi = trim($_POST['provinsi'] ?? '');
-        $kabupaten = trim($_POST['kabupaten'] ?? '');
-        $kecamatan = trim($_POST['kecamatan'] ?? '');
-        $kodePos = trim($_POST['kode_pos'] ?? '');
-        $catatan = trim($_POST['catatan'] ?? '');
+        // ── Form data ─────────────────────────────────────────────────────────
+        $fullname      = trim($_POST['fullname']       ?? '');
+        $phone         = trim($_POST['phone']          ?? '');
+        $alamat        = trim($_POST['alamat']         ?? '');
+        $provinsi      = trim($_POST['provinsi']       ?? '');
+        $kabupaten     = trim($_POST['kabupaten']      ?? '');
+        $kecamatan     = trim($_POST['kecamatan']      ?? '');
+        $kodePos       = trim($_POST['kode_pos']       ?? '');
+        $catatan       = trim($_POST['catatan']        ?? '');
+        $ongkir        = (int) ($_POST['ongkir']       ?? 0);
+        $paymentMethod = $_POST['payment_method']      ?? 'manual_transfer';
 
-        // Shipping cost (manual input or from API)
-        $ongkir = (int) ($_POST['ongkir'] ?? 0);
-
-        // Payment method
-        $paymentMethod = $_POST['payment_method'] ?? 'manual_transfer';
-
-        // Validation
+        // ── Validasi ──────────────────────────────────────────────────────────
         if (empty($fullname) || empty($phone) || empty($alamat) || empty($provinsi) || empty($kabupaten)) {
-            $_SESSION['error'] = 'Data alamat pengiriman belum lengkap';
-            return redirect('/checkout');
+            flash('error', 'Data alamat pengiriman belum lengkap');
+            redirect('/checkout');
         }
 
-        // Load products
-        $products = json_read('products.json') ?? [];
+        // ── Build order items dari SQLite ─────────────────────────────────────
+        $slugUuids  = array_unique(array_column($cart['items'], 'slug_uuid'));
+        $productMap = self::fetchProductMap($slugUuids);
+        $variantMap = self::fetchVariantMap($slugUuids);
 
-        // Build order items
         $orderItems = [];
-        $subtotal = 0;
+        $subtotal   = 0;
 
         foreach ($cart['items'] as $cartItem) {
-            foreach ($products as $p) {
-                if ($p['slug_uuid'] === $cartItem['slug_uuid']) {
-                    $lineTotal = $p['price'] * $cartItem['qty'];
-                    $subtotal += $lineTotal;
+            $p = $productMap[$cartItem['slug_uuid']] ?? null;
+            if (!$p) continue;
 
-                    $orderItems[] = [
-                        'product_slug_uuid' => $p['slug_uuid'],
-                        'product_title' => $p['title'],
-                        'product_image' => $p['images'][0] ?? null,
-                        'price' => $p['price'],
-                        'qty' => $cartItem['qty'],
-                        'color' => $cartItem['color'],
-                        'size' => $cartItem['size'],
-                        'line_total' => $lineTotal,
-                    ];
-                    break;
-                }
-            }
+            $variantKey  = strtolower($cartItem['color']) . '_' . strtoupper($cartItem['size']);
+            $variantData = $variantMap[$cartItem['slug_uuid']][$variantKey] ?? null;
+            $price       = $variantData ? $variantData['price'] : 0;
+            $lineTotal   = $price * $cartItem['qty'];
+            $subtotal   += $lineTotal;
+
+            $orderItems[] = [
+                'product_slug_uuid' => $p['slug_uuid'],
+                'product_title'     => $p['title'],
+                'product_image'     => $p['thumbnail'],
+                'price'             => $price,
+                'qty'               => $cartItem['qty'],
+                'color'             => $cartItem['color'],
+                'size'              => strtoupper($cartItem['size']),
+                'line_total'        => $lineTotal,
+            ];
         }
 
-        // Calculate total
-        $total = $subtotal + $ongkir;
+        if (empty($orderItems)) {
+            flash('error', 'Produk tidak valid, silakan ulangi pembelian');
+            redirect('/cart');
+        }
 
-        // Generate order ID
+        $total   = $subtotal + $ongkir;
         $orderId = 'ORD-' . date('Ymd') . '-' . strtoupper(substr(md5(uniqid()), 0, 6));
-        $now = date('Y-m-d H:i:s');
+        $now     = date('Y-m-d H:i:s');
 
-        // Create order
+        // ── Simpan order ke JSON (sementara, sampai orders table dibuat) ──────
         $order = [
-            'order_id' => $orderId,
-            'customer_uuid' => $customer['uuid'],
-            'customer_name' => $fullname,
+            'order_id'       => $orderId,
+            'customer_uuid'  => $customer['slug_uuid'],
+            'customer_name'  => $fullname,
             'customer_email' => $customer['email'],
             'customer_phone' => $phone,
 
-            // Shipping address
             'shipping_address' => [
-                'fullname' => $fullname,
-                'phone' => $phone,
-                'alamat' => $alamat,
-                'provinsi' => $provinsi,
-                'kabupaten' => $kabupaten,
-                'kecamatan' => $kecamatan,
-                'kode_pos' => $kodePos,
+                'fullname'   => $fullname,
+                'phone'      => $phone,
+                'alamat'     => $alamat,
+                'provinsi'   => $provinsi,
+                'kabupaten'  => $kabupaten,
+                'kecamatan'  => $kecamatan,
+                'kode_pos'   => $kodePos,
             ],
 
-            // Order items
-            'items' => $orderItems,
+            'items'      => $orderItems,
             'item_count' => count($orderItems),
 
-            // Pricing
-            'subtotal' => $subtotal,
+            'subtotal'      => $subtotal,
             'shipping_cost' => $ongkir,
-            'total' => $total,
+            'total'         => $total,
 
-            // Payment
-            'payment_method' => $paymentMethod,
-            'payment_status' => 'pending', // pending | paid | failed
-            'payment_proof' => null,
+            'payment_method'      => $paymentMethod,
+            'payment_status'      => 'pending',
+            'payment_proof'       => null,
             'payment_verified_at' => null,
 
-            // Status
-            'status' => 'waiting_payment', // waiting_payment | processing | shipped | delivered | cancelled
-            'notes' => $catatan,
-
-            // Timestamps
-            'created_at' => $now,
-            'updated_at' => null,
+            'status'       => 'waiting_payment',
+            'notes'        => $catatan,
+            'created_at'   => $now,
+            'updated_at'   => null,
             'cancelled_at' => null,
         ];
 
-        // Save order
-        $orders = json_read('orders.json') ?? [];
+        // TODO: Ganti ke SQLite setelah orders table dibuat
+        $orders   = json_read('orders.json') ?? [];
         $orders[] = $order;
         json_write('orders.json', $orders);
 
-        // Clear cart
-        $_SESSION['cart'] = [
-            'items' => [],
-            'total_qty' => 0,
-        ];
+        // ── Clear cart ────────────────────────────────────────────────────────
+        $_SESSION['cart'] = ['items' => [], 'total_qty' => 0];
 
-        // Redirect to payment page
-        $_SESSION['success'] = 'Pesanan berhasil dibuat! Silakan lakukan pembayaran.';
-        return redirect('/order/' . $orderId);
+        flash('success', 'Pesanan berhasil dibuat! Silakan lakukan pembayaran.');
+        redirect('/order/' . $orderId);
     }
 
-    /**
-     * Calculate shipping cost (RajaOngkir integration - optional)
-     * 
-     * Route: POST /checkout/calculate-shipping
-     */
-    public static function calculateShipping()
+    // =========================================================================
+    // CALCULATE SHIPPING — POST /checkout/calculate-shipping
+    // =========================================================================
+    public static function calculateShipping(): void
     {
-        // For now, return manual ongkir
-        // TODO: Integrate with RajaOngkir API
-
-        $destination = $_POST['kabupaten'] ?? '';
-        $weight = (int) ($_POST['weight'] ?? 1000); // in grams
-
-        // Dummy calculation (replace with real API call)
-        $ongkir = 25000; // Default Rp 25k
-
+        // TODO: Integrate RajaOngkir API
         json_response([
-            'success' => true,
-            'shipping_cost' => $ongkir,
-            'courier' => 'JNE REG',
-            'etd' => '3-5 hari',
+            'success'       => true,
+            'shipping_cost' => 25000,
+            'courier'       => 'JNE REG',
+            'etd'           => '3-5 hari',
         ]);
+    }
+
+    // =========================================================================
+    // PRIVATE HELPERS
+    // =========================================================================
+    private static function fetchProductMap(array $slugUuids): array
+    {
+        if (empty($slugUuids)) return [];
+
+        $placeholders = implode(',', array_fill(0, count($slugUuids), '?'));
+        $stmt         = db()->prepare("
+            SELECT p.slug_uuid, p.title,
+                   (SELECT image FROM product_images
+                    WHERE product_id = p.id ORDER BY sort_order ASC LIMIT 1) AS thumbnail
+            FROM products p
+            WHERE p.slug_uuid IN ($placeholders)
+              AND p.deleted_at IS NULL AND p.status = 1
+        ");
+        $stmt->execute($slugUuids);
+
+        $map = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $map[$row['slug_uuid']] = $row;
+        }
+        return $map;
+    }
+
+    private static function fetchVariantMap(array $slugUuids): array
+    {
+        if (empty($slugUuids)) return [];
+
+        $placeholders = implode(',', array_fill(0, count($slugUuids), '?'));
+        $stmt         = db()->prepare("
+            SELECT p.slug_uuid, pv.color, pv.size, pv.price, pv.stock
+            FROM product_variants pv
+            JOIN products p ON p.id = pv.product_id
+            WHERE p.slug_uuid IN ($placeholders)
+        ");
+        $stmt->execute($slugUuids);
+
+        $map = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $key           = strtolower($row['color']) . '_' . strtoupper($row['size']);
+            $map[$row['slug_uuid']][$key] = [
+                'price' => (int) $row['price'],
+                'stock' => (int) $row['stock'],
+            ];
+        }
+        return $map;
     }
 }

@@ -220,7 +220,7 @@ ob_start();
                         </a>
                         <button type="submit"
                             class="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-neutral-900 bg-neutral-900 text-neutral-100 hover:bg-neutral-800">
-                            Create Product
+                            Create
                         </button>
                     </div>
 

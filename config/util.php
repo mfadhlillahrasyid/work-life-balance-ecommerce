@@ -93,13 +93,6 @@ if (!function_exists('is_active_exact')) {
 }
 
 if (!function_exists('is_active_group')) {
-    // function is_active_group(string $prefix): string
-    // {
-    //     return str_starts_with(current_path(), $prefix)
-    //         ? 'bg-gray-100 font-semibold'
-    //         : '';
-    // }
-
     // helper
     function is_active_group(string $prefix)
     {

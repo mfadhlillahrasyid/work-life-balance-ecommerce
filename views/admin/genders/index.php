@@ -70,6 +70,23 @@ ob_start();
                         </tr>
                     </thead>
                     <tbody>
+                        <?php if (empty($genders)): ?>
+                            <tr>
+                                <td colspan="5" class="px-6 py-12 text-center text-sm text-gray-400">
+                                    <div class="flex flex-col gap-2 items-center justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="1.5" stroke="currentColor" class="size-12">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                                        </svg>
+
+                                        <span class="text-sm sm:text-base font-medium tracking-tight">Data Not Available</span>
+                                    </div>
+
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+
                         <?php foreach ($genders as $gender): ?>
                             <tr class="bg-neutral-primary-soft text-neutral-600 border-b last:border-b-0">
                                 <td class="px-6 py-4 whitespace-nowrap">

@@ -1,161 +1,250 @@
 <?php
+// app/Controllers/Front/CartController.php
 
 namespace App\Controllers\Front;
 
 class CartController
 {
-    public static function index()
+    // =========================================================================
+    // SHARED: Ambil price dan image dari SQLite berdasarkan slug_uuid
+    // =========================================================================
+    private static function fetchProductData(array $slugUuids): array
     {
-        $cart = $_SESSION['cart'] ?? [
-            'items' => [],
-            'total_qty' => 0,
-        ];
+        if (empty($slugUuids)) return [];
+
+        $placeholders = implode(',', array_fill(0, count($slugUuids), '?'));
+
+        $stmt = db()->prepare("
+            SELECT p.slug_uuid,
+                   p.title,
+                   (SELECT image FROM product_images WHERE product_id = p.id ORDER BY sort_order ASC LIMIT 1) AS thumbnail
+            FROM products p
+            WHERE p.slug_uuid IN ($placeholders)
+              AND p.deleted_at IS NULL
+              AND p.status = 1
+        ");
+        $stmt->execute($slugUuids);
+
+        // Key by slug_uuid untuk lookup O(1)
+        $result = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $result[$row['slug_uuid']] = $row;
+        }
+        return $result;
+    }
+
+    /**
+     * Ambil harga spesifik per variant (color + size)
+     * Return map: slug_uuid => [color_size => price]
+     */
+    private static function fetchVariantPrices(array $slugUuids): array
+    {
+        if (empty($slugUuids)) return [];
+
+        $placeholders = implode(',', array_fill(0, count($slugUuids), '?'));
+
+        $stmt = db()->prepare("
+            SELECT p.slug_uuid, pv.color, pv.size, pv.price, pv.stock
+            FROM product_variants pv
+            JOIN products p ON p.id = pv.product_id
+            WHERE p.slug_uuid IN ($placeholders)
+        ");
+        $stmt->execute($slugUuids);
+
+        $result = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $key = strtolower($row['color']) . '_' . strtoupper($row['size']);
+            $result[$row['slug_uuid']][$key] = [
+                'price' => (int) $row['price'],
+                'stock' => (int) $row['stock'],
+            ];
+        }
+        return $result;
+    }
+
+    // =========================================================================
+    // INDEX
+    // =========================================================================
+    public static function index(): void
+    {
+        $cart = $_SESSION['cart'] ?? ['items' => [], 'total_qty' => 0];
 
         if (empty($cart['items'])) {
-            return view('front/cart/index', [
-                'items' => [],
-                'subtotal' => 0,
-            ]);
+            view('front/cart/index', ['items' => [], 'subtotal' => 0]);
+            return;
         }
 
-        $products = json_read('products.json') ?? [];
+        $slugUuids    = array_unique(array_column($cart['items'], 'slug_uuid'));
+        $productMap   = self::fetchProductData($slugUuids);
+        $variantMap   = self::fetchVariantPrices($slugUuids);
 
-        $items = [];
+        $items    = [];
         $subtotal = 0;
 
         foreach ($cart['items'] as $item) {
-            foreach ($products as $p) {
-                if ($p['slug_uuid'] === $item['slug_uuid']) {
+            $p = $productMap[$item['slug_uuid']] ?? null;
+            if (!$p) continue;
 
-                    $lineSubtotal = $p['price'] * $item['qty'];
-                    $subtotal += $lineSubtotal;
+            $variantKey  = strtolower($item['color']) . '_' . strtoupper($item['size']);
+            $variantData = $variantMap[$item['slug_uuid']][$variantKey] ?? null;
+            $price       = $variantData ? $variantData['price'] : 0;
 
-                    $items[] = [
-                        'id' => md5($p['slug_uuid'] . $item['color'] . $item['size']), // ← PENTING
-                        'slug_uuid' => $p['slug_uuid'],
-                        'title' => $p['title'],
-                        'price' => $p['price'],
-                        'image' => $p['images'][0] ?? null,
-                        'color' => $item['color'],
-                        'size' => strtoupper($item['size']),
-                        'qty' => $item['qty'],
-                        'line_subtotal' => $lineSubtotal,
-                    ];
+            $lineSubtotal = $price * $item['qty'];
+            $subtotal    += $lineSubtotal;
 
-                    break;
-                }
-            }
+            $items[] = [
+                'id'            => $item['id'],
+                'slug_uuid'     => $item['slug_uuid'],
+                'title'         => $p['title'],
+                'price'         => $price,
+                'image'         => $p['thumbnail'],
+                'color'         => $item['color'],
+                'size'          => strtoupper($item['size']),
+                'qty'           => $item['qty'],
+                'line_subtotal' => $lineSubtotal,
+            ];
         }
 
-        return view('front/cart/index', [
-            'items' => $items,
+        view('front/cart/index', [
+            'items'    => $items,
             'subtotal' => $subtotal,
         ]);
     }
+
+    // =========================================================================
+    // ADD
+    // =========================================================================
     public static function add(): void
     {
-        $payload = json_decode(file_get_contents('php://input'), true);
+        $payload  = json_decode(file_get_contents('php://input'), true);
 
         if (!$payload) {
             json_response(['success' => false, 'message' => 'Invalid payload'], 400);
+            return;
         }
 
         $slugUuid = $payload['slug_uuid'] ?? null;
-        $color = $payload['color'] ?? null;
-        $size = $payload['size'] ?? null;
-        $qty = (int) ($payload['qty'] ?? 1);
+        $color    = strtolower(trim($payload['color'] ?? ''));
+        $size     = strtoupper(trim($payload['size'] ?? ''));
+        $qty      = max(1, (int) ($payload['qty'] ?? 1));
 
         if (!$slugUuid || !$color || !$size) {
             json_response(['success' => false, 'message' => 'Missing variant'], 422);
+            return;
         }
 
-        $_SESSION['cart'] ??= [
-            'items' => [],
-            'total_qty' => 0,
-        ];
+        // Validasi variant exist dan cek stok
+        $stmt = db()->prepare("
+            SELECT pv.price, pv.stock
+            FROM product_variants pv
+            JOIN products p ON p.id = pv.product_id
+            WHERE p.slug_uuid = :slug_uuid
+              AND LOWER(pv.color) = :color
+              AND UPPER(pv.size)  = :size
+              AND p.deleted_at IS NULL
+              AND p.status = 1
+            LIMIT 1
+        ");
+        $stmt->execute([
+            ':slug_uuid' => $slugUuid,
+            ':color'     => $color,
+            ':size'      => $size,
+        ]);
+        $variant = $stmt->fetch();
 
-        // Generate unique ID berdasarkan variant
-        $itemId = md5($slugUuid . $color . $size);
+        if (!$variant) {
+            json_response(['success' => false, 'message' => 'Variant tidak tersedia'], 422);
+            return;
+        }
 
-        // Check apakah item dengan variant yang sama udah ada
+        if ((int) $variant['stock'] <= 0) {
+            json_response(['success' => false, 'message' => 'Stok habis'], 422);
+            return;
+        }
+
+        // Session cart
+        $_SESSION['cart'] ??= ['items' => [], 'total_qty' => 0];
+
+        $itemId    = md5($slugUuid . $color . $size);
         $itemFound = false;
 
         foreach ($_SESSION['cart']['items'] as &$item) {
             if ($item['id'] === $itemId) {
-                // ITEM SUDAH ADA → INCREMENT QTY
-                $item['qty'] += $qty;
-                $itemFound = true;
+                $newQty = $item['qty'] + $qty;
+                // Jangan exceed stok
+                $item['qty'] = min($newQty, (int) $variant['stock']);
+                $itemFound   = true;
                 break;
             }
         }
+        unset($item);
 
-        // Kalau item belum ada, tambahkan baru
         if (!$itemFound) {
             $_SESSION['cart']['items'][] = [
-                'id' => $itemId,
+                'id'        => $itemId,
                 'slug_uuid' => $slugUuid,
-                'color' => $color,
-                'size' => $size,
-                'qty' => $qty,
+                'color'     => $color,
+                'size'      => $size,
+                'qty'       => min($qty, (int) $variant['stock']),
             ];
         }
 
-        // Update total qty
         $_SESSION['cart']['total_qty'] = array_sum(
             array_column($_SESSION['cart']['items'], 'qty')
         );
 
         json_response([
-            'success' => true,
-            'total_qty' => $_SESSION['cart']['total_qty'],
-            'is_increment' => $itemFound, // Bonus: frontend bisa tau increment atau new
+            'success'      => true,
+            'total_qty'    => $_SESSION['cart']['total_qty'],
+            'is_increment' => $itemFound,
         ]);
     }
-    public static function updateQty()
+
+    // =========================================================================
+    // UPDATE QTY
+    // =========================================================================
+    public static function updateQty(): void
     {
         $payload = json_decode(file_get_contents('php://input'), true);
-
-        $itemId = $payload['item_id'] ?? null;
-        $qty = (int) ($payload['qty'] ?? 1);
+        $itemId  = $payload['item_id'] ?? null;
+        $qty     = (int) ($payload['qty'] ?? 1);
 
         if (!$itemId || $qty < 1) {
-            return json_response(['success' => false], 422);
+            json_response(['success' => false], 422);
+            return;
         }
 
-        // Update qty
         $itemFound = false;
-        $targetSlugUuid = null;
 
         foreach ($_SESSION['cart']['items'] as &$item) {
             if ($item['id'] === $itemId) {
                 $item['qty'] = $qty;
-                $targetSlugUuid = $item['slug_uuid'];
-                $itemFound = true;
+                $itemFound   = true;
                 break;
             }
         }
+        unset($item);
 
         if (!$itemFound) {
-            return json_response(['success' => false, 'message' => 'Item not found'], 404);
+            json_response(['success' => false, 'message' => 'Item not found'], 404);
+            return;
         }
 
-        // Hitung subtotal (perlu products.json untuk dapetin price)
-        $products = json_read('products.json') ?? [];
+        // Hitung ulang subtotal dari SQLite
+        $slugUuids  = array_unique(array_column($_SESSION['cart']['items'], 'slug_uuid'));
+        $variantMap = self::fetchVariantPrices($slugUuids);
+
+        $subtotal     = 0;
         $itemSubtotal = 0;
-        $subtotal = 0;
 
         foreach ($_SESSION['cart']['items'] as $cartItem) {
-            foreach ($products as $p) {
-                if ($p['slug_uuid'] === $cartItem['slug_uuid']) {
-                    $lineTotal = $p['price'] * $cartItem['qty'];
-                    $subtotal += $lineTotal;
+            $variantKey = strtolower($cartItem['color']) . '_' . strtoupper($cartItem['size']);
+            $price      = $variantMap[$cartItem['slug_uuid']][$variantKey]['price'] ?? 0;
+            $lineTotal  = $price * $cartItem['qty'];
+            $subtotal  += $lineTotal;
 
-                    // Track item yang baru di-update
-                    if ($cartItem['id'] === $itemId) {
-                        $itemSubtotal = $lineTotal;
-                    }
-                    break;
-                }
+            if ($cartItem['id'] === $itemId) {
+                $itemSubtotal = $lineTotal;
             }
         }
 
@@ -163,20 +252,25 @@ class CartController
             array_column($_SESSION['cart']['items'], 'qty')
         );
 
-        return json_response([
-            'success' => true,
-            'total_qty' => $_SESSION['cart']['total_qty'],
-            'subtotal' => $subtotal,
+        json_response([
+            'success'       => true,
+            'total_qty'     => $_SESSION['cart']['total_qty'],
+            'subtotal'      => $subtotal,
             'item_subtotal' => $itemSubtotal,
         ]);
     }
-    public static function remove()
+
+    // =========================================================================
+    // REMOVE
+    // =========================================================================
+    public static function remove(): void
     {
         $payload = json_decode(file_get_contents('php://input'), true);
-        $itemId = $payload['item_id'] ?? null;
+        $itemId  = $payload['item_id'] ?? null;
 
         if (!$itemId) {
-            return json_response(['success' => false], 422);
+            json_response(['success' => false], 422);
+            return;
         }
 
         $beforeCount = count($_SESSION['cart']['items']);
@@ -186,34 +280,33 @@ class CartController
             fn($item) => $item['id'] !== $itemId
         ));
 
-        $afterCount = count($_SESSION['cart']['items']);
-
-        // Validasi apakah item beneran ke-remove
-        if ($beforeCount === $afterCount) {
-            return json_response(['success' => false, 'message' => 'Item not found'], 404);
+        if (count($_SESSION['cart']['items']) === $beforeCount) {
+            json_response(['success' => false, 'message' => 'Item not found'], 404);
+            return;
         }
 
         $_SESSION['cart']['total_qty'] = array_sum(
             array_column($_SESSION['cart']['items'], 'qty')
         );
 
-        // Hitung ulang subtotal setelah remove
-        $products = json_read('products.json') ?? [];
+        // Hitung ulang subtotal
         $subtotal = 0;
 
-        foreach ($_SESSION['cart']['items'] as $cartItem) {
-            foreach ($products as $p) {
-                if ($p['slug_uuid'] === $cartItem['slug_uuid']) {
-                    $subtotal += $p['price'] * $cartItem['qty'];
-                    break;
-                }
+        if (!empty($_SESSION['cart']['items'])) {
+            $slugUuids  = array_unique(array_column($_SESSION['cart']['items'], 'slug_uuid'));
+            $variantMap = self::fetchVariantPrices($slugUuids);
+
+            foreach ($_SESSION['cart']['items'] as $cartItem) {
+                $variantKey = strtolower($cartItem['color']) . '_' . strtoupper($cartItem['size']);
+                $price      = $variantMap[$cartItem['slug_uuid']][$variantKey]['price'] ?? 0;
+                $subtotal  += $price * $cartItem['qty'];
             }
         }
 
-        return json_response([
-            'success' => true,
+        json_response([
+            'success'   => true,
             'total_qty' => $_SESSION['cart']['total_qty'],
-            'subtotal' => $subtotal,
+            'subtotal'  => $subtotal,
         ]);
     }
 }

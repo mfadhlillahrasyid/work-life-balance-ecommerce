@@ -67,11 +67,11 @@ ob_start();
 
                 </div>
 
-                <button class="w-full bg-black text-white py-2 mt-3 rounded-lg hover:bg-gray-900 transition">
+                <button type="submit" class="w-full bg-black text-white py-2 mt-3 rounded-lg hover:bg-gray-900 transition">
                     Register
                 </button>
 
-                <a href="/customers/login"
+                <a href="/account/login"
                     class="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-indigo-600 transition-all duration-300 mt-3">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                         stroke="currentColor" class="size-4">

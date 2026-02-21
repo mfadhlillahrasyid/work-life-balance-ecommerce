@@ -68,7 +68,7 @@ ob_start();
                     Login
                 </button>
 
-                <a href="/customers/register"
+                <a href="/account/register"
                     class="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-indigo-600 transition-all duration-300 mt-3">
                     Dont Have Account ? Register Now..
                 </a>

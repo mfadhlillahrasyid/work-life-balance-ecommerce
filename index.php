@@ -27,6 +27,8 @@ require_once __DIR__ . '/app/Controllers/Front/OrderController.php';
 require_once __DIR__ . '/app/Controllers/Front/ArticleController.php';
 
 require_once __DIR__ . '/app/Controllers/Api/SearchController.php';
+require_once __DIR__ . '/app/Controllers/Api/WilayahController.php';
+require_once __DIR__ . '/app/Controllers/Api/ShippingController.php';
 
 require_once __DIR__ . '/app/Controllers/Customer/DashboardController.php';
 require_once __DIR__ . '/app/Controllers/Customer/AuthController.php';
@@ -39,11 +41,13 @@ require_once __DIR__ . '/app/Controllers/Admin/ProductCategoryController.php';
 require_once __DIR__ . '/app/Controllers/Admin/ProductController.php';
 require_once __DIR__ . '/app/Controllers/Admin/GenderController.php';
 require_once __DIR__ . '/app/Controllers/Admin/PostController.php';
+require_once __DIR__ . '/app/Controllers/Admin/ShippingZoneController.php';
 
 // load routes
 require_once __DIR__ . '/routes/web.php';
 require_once __DIR__ . '/routes/customer.php';
 require_once __DIR__ . '/routes/admin.php';
+require_once __DIR__ . '/routes/api.php';
 
 // run router
 dispatch();

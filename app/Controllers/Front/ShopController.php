@@ -1,104 +1,121 @@
 <?php
+// app/Controllers/Front/ShopController.php
 
 namespace App\Controllers\Front;
 
 class ShopController
 {
-    public static function index()
-    {
-        // =========================
-        // LOAD DATA
-        // =========================
-        $genders = json_read('genders.json') ?? [];
-        $categories = json_read('product-categories.json') ?? [];
-        $products = json_read('products.json') ?? [];
+    // =========================================================================
+    // SHARED HELPERS
+    // =========================================================================
 
-        // =========================
-        // NORMALIZE QUERY STRING
-        // =========================
-        $qs = $_GET;
+    /**
+     * Ambil semua produk aktif dari SQLite dengan JOIN lengkap
+     * Return flat array siap di-filter di PHP (sama seperti JSON lama)
+     */
+    private static function fetchBaseProducts(
+        ?int $lockedGenderId = null,
+        ?int $lockedCategoryId = null
+    ): array {
+        $sql = "
+            SELECT
+                p.id,
+                p.title,
+                p.slug,
+                p.slug_uuid,
+                p.description,
+                p.created_at,
+                p.product_category_id,
+                p.gender_id,
+                pc.slug AS category_slug,
+                g.slug  AS gender_slug,
+                (SELECT image FROM product_images
+                 WHERE product_id = p.id ORDER BY sort_order ASC LIMIT 1) AS thumbnail,
+                (SELECT GROUP_CONCAT(DISTINCT color) FROM product_variants WHERE product_id = p.id) AS colors,
+                (SELECT GROUP_CONCAT(DISTINCT size)  FROM product_variants WHERE product_id = p.id) AS sizes,
+                MIN(pv.price) AS price_from,
+                SUM(pv.stock) AS total_stock
+            FROM products p
+            LEFT JOIN product_categories pc ON pc.id = p.product_category_id
+            LEFT JOIN genders g             ON g.id  = p.gender_id
+            LEFT JOIN product_variants pv   ON pv.product_id = p.id
+            WHERE p.deleted_at IS NULL
+              AND p.status = 1
+        ";
 
-        $genderSlugs = array_values((array) ($qs['gender'] ?? []));
-        $categorySlugs = array_values((array) ($qs['category'] ?? []));
-        $sizes = array_values((array) ($qs['size'] ?? []));
-        $colors = array_values((array) ($qs['color'] ?? []));
-        $priceRanges = array_values((array) ($qs['price'] ?? []));
-        $search = trim($qs['q'] ?? '');
-        $sortBy = array_values((array) ($qs['sort'] ?? []));
+        $params = [];
 
-        // =========================
-        // BUILD MAPS
-        // =========================
-        $genderSlugToId = [];
-        $categorySlugToId = [];
-        $categoryIdToSlug = [];
-
-        foreach ($genders as $g) {
-            if (empty($g['deleted_at'])) {
-                $genderSlugToId[$g['slug']] = $g['id'];
-            }
+        if ($lockedGenderId !== null) {
+            $sql .= " AND p.gender_id = :gender_id";
+            $params[':gender_id'] = $lockedGenderId;
         }
 
-        foreach ($categories as $c) {
-            if (empty($c['deleted_at'])) {
-                $categorySlugToId[$c['slug']] = $c['id'];
-                $categoryIdToSlug[$c['id']] = $c['slug'];
-            }
+        if ($lockedCategoryId !== null) {
+            $sql .= " AND p.product_category_id = :category_id";
+            $params[':category_id'] = $lockedCategoryId;
         }
 
-        // =========================
-        // GET BASE PRODUCTS (ALL ACTIVE)
-        // =========================
-        $baseProducts = array_values(array_filter($products, function ($p) {
-            return empty($p['deleted_at']) && !empty($p['status']);
-        }));
+        $sql .= " GROUP BY p.id";
 
-        // =========================
-        // FILTER PRODUCTS
-        // =========================
-        $filteredProducts = array_values(array_filter($baseProducts, function ($p) use ($genderSlugs, $genderSlugToId, $categorySlugs, $categorySlugToId, $sizes, $colors, $priceRanges, $search) {
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
 
+        // Normalize: colors dan sizes jadi array (sama seperti struktur JSON lama)
+        return array_map(function ($p) {
+            $p['colors'] = !empty($p['colors'])
+                ? array_values(array_filter(array_map('trim', explode(',', $p['colors']))))
+                : [];
+
+            $p['sizes'] = !empty($p['sizes'])
+                ? array_values(array_filter(array_map('trim', explode(',', $p['sizes']))))
+                : [];
+
+            $p['price'] = (int) $p['price_from'];
+            $p['stock'] = (int) $p['total_stock'];
+
+            return $p;
+        }, $rows);
+    }
+
+    /**
+     * Filter products — logic sama persis dengan versi JSON lama
+     */
+    private static function filterProducts(
+        array $products,
+        array $genderSlugs,
+        array $categorySlugs,
+        array $sizes,
+        array $colors,
+        array $priceRanges,
+        string $search
+    ): array {
+        return array_values(array_filter($products, function ($p) use ($genderSlugs, $categorySlugs, $sizes, $colors, $priceRanges, $search) {
             // GENDER
-            if ($genderSlugs) {
-                $allowedGenderIds = array_intersect_key(
-                    $genderSlugToId,
-                    array_flip($genderSlugs)
-                );
-
-                if (!in_array($p['gender_id'] ?? null, $allowedGenderIds, true)) {
-                    return false;
-                }
+            if ($genderSlugs && !in_array($p['gender_slug'], $genderSlugs, true)) {
+                return false;
             }
 
             // CATEGORY
-            if ($categorySlugs) {
-                $allowedCategoryIds = array_intersect_key(
-                    $categorySlugToId,
-                    array_flip($categorySlugs)
-                );
-
-                if (!in_array($p['product_category_id'], $allowedCategoryIds, true)) {
-                    return false;
-                }
+            if ($categorySlugs && !in_array($p['category_slug'], $categorySlugs, true)) {
+                return false;
             }
 
             // SIZE
-            if ($sizes && empty(array_intersect($p['sizes'] ?? [], $sizes))) {
+            if ($sizes && empty(array_intersect($p['sizes'], $sizes))) {
                 return false;
             }
 
             // COLOR
-            if ($colors && empty(array_intersect($p['colors'] ?? [], $colors))) {
+            if ($colors && empty(array_intersect($p['colors'], $colors))) {
                 return false;
             }
 
             // PRICE RANGE (multi OR)
             if ($priceRanges) {
                 $priceMatch = false;
-
                 foreach ($priceRanges as $range) {
                     [$min, $max] = array_pad(explode('-', $range), 2, null);
-
                     if (
                         ($min === null || $p['price'] >= (int) $min) &&
                         ($max === null || $p['price'] <= (int) $max)
@@ -107,7 +124,6 @@ class ShopController
                         break;
                     }
                 }
-
                 if (!$priceMatch)
                     return false;
             }
@@ -119,902 +135,491 @@ class ShopController
 
             return true;
         }));
+    }
 
-        // =========================
-        // MAP PRODUCTS FOR VIEW
-        // =========================
-        $productsForView = array_map(function ($p) use ($categoryIdToSlug, $genders) {
-            $genderSlug = null;
-            foreach ($genders as $g) {
-                if ($g['id'] === ($p['gender_id'] ?? null)) {
-                    $genderSlug = $g['slug'];
-                    break;
-                }
-            }
+    /**
+     * Map product ke contract yang dikirim ke view
+     */
+    private static function mapForView(array $products): array
+    {
+        return array_map(fn($p) => [
+            'title' => $p['title'],
+            'slug_uuid' => $p['slug_uuid'],
+            'slug' => $p['slug'],
+            'price' => $p['price'],
+            'thumbnail' => $p['thumbnail'],
+            'gender' => $p['gender_slug'],
+            'category' => $p['category_slug'],
+            'sizes' => $p['sizes'],
+            'colors' => $p['colors'],
+            'created_at' => $p['created_at'],
+        ], $products);
+    }
 
-            return [
-                'title' => $p['title'],
-                'slug_uuid' => $p['slug_uuid'],
-                'slug' => $p['slug'],
-                'price' => $p['price'],
-                'thumbnail' => $p['images'][0] ?? null,
-                'gender' => $genderSlug,
-                'category' => $categoryIdToSlug[$p['product_category_id']] ?? null,
-                'sizes' => $p['sizes'] ?? [],
-                'colors' => $p['colors'] ?? [],
-                'created_at' => $p['created_at'] ?? '',
-            ];
-        }, $filteredProducts);
+    /**
+     * Sort products — logic sama persis dengan versi JSON lama
+     */
+    private static function sortProducts(array &$products, string $sort): void
+    {
+        match ($sort) {
+            'newest' => usort($products, fn($a, $b) => strcmp($b['created_at'], $a['created_at'])),
+            'oldest' => usort($products, fn($a, $b) => strcmp($a['created_at'], $b['created_at'])),
+            'price-asc' => usort($products, fn($a, $b) => $a['price'] <=> $b['price']),
+            'price-desc' => usort($products, fn($a, $b) => $b['price'] <=> $a['price']),
+            default => null,
+        };
+    }
 
-        // =========================
-        // BUILD FILTER OPTIONS (DYNAMIC)
-        // =========================
+    /**
+     * Build filter options dari base products
+     */
+    private static function buildFilterOptions(array $baseProducts): array
+    {
         $filterColors = [];
         $filterSizes = [];
         $usedCategorySlugs = [];
-        $usedGenderIds = [];
+        $usedGenderSlugs = [];
 
         foreach ($baseProducts as $p) {
-            // Colors
-            foreach ($p['colors'] ?? [] as $c) {
+            foreach ($p['colors'] as $c) {
                 $filterColors[$c] = true;
             }
-
-            // Sizes
-            foreach ($p['sizes'] ?? [] as $s) {
+            foreach ($p['sizes'] as $s) {
                 $filterSizes[$s] = true;
             }
-
-            // Categories
-            if (isset($categoryIdToSlug[$p['product_category_id']])) {
-                $usedCategorySlugs[$categoryIdToSlug[$p['product_category_id']]] = true;
+            if (!empty($p['category_slug'])) {
+                $usedCategorySlugs[$p['category_slug']] = true;
             }
-
-            // Genders
-            if (!empty($p['gender_id'])) {
-                $usedGenderIds[$p['gender_id']] = true;
+            if (!empty($p['gender_slug'])) {
+                $usedGenderSlugs[$p['gender_slug']] = true;
             }
         }
 
-        $filterCategories = array_values(array_filter($categories, function ($c) use ($usedCategorySlugs) {
-            return
-                empty($c['deleted_at']) &&
-                !empty($c['available']) &&
-                isset($usedCategorySlugs[$c['slug']]);
-        }));
+        return [
+            'colors' => array_keys($filterColors),
+            'sizes' => array_keys($filterSizes),
+            'categorySlugs' => array_keys($usedCategorySlugs),
+            'genderSlugs' => array_keys($usedGenderSlugs),
+        ];
+    }
 
-        $filterGenders = array_values(array_filter($genders, function ($g) use ($usedGenderIds) {
-            return
-                empty($g['deleted_at']) &&
-                isset($usedGenderIds[$g['id']]);
-        }));
-
-        $priceRangesOptions = [
+    private static function priceRangeOptions(): array
+    {
+        return [
             '0-100000' => 'Under Rp 100k',
             '100000-300000' => 'Rp 100k – 300k',
             '300000-999999999' => 'Above Rp 300k',
         ];
+    }
 
-        // =========================
-        // SORT PRODUCTS
-        // =========================
-        $sort = $sortBy[0] ?? '';
+    private static function parseQs(): array
+    {
+        $qs = $_GET;
+        return [
+            'genderSlugs' => array_values((array) ($qs['gender'] ?? [])),
+            'categorySlugs' => array_values((array) ($qs['category'] ?? [])),
+            'sizes' => array_values((array) ($qs['size'] ?? [])),
+            'colors' => array_values((array) ($qs['color'] ?? [])),
+            'priceRanges' => array_values((array) ($qs['price'] ?? [])),
+            'search' => trim($qs['q'] ?? ''),
+            'sortBy' => array_values((array) ($qs['sort'] ?? [])),
+        ];
+    }
 
-        if ($sort === 'newest') {
-            usort($productsForView, fn($a, $b) => strcmp($b['created_at'], $a['created_at']));
-        } elseif ($sort === 'oldest') {
-            usort($productsForView, fn($a, $b) => strcmp($a['created_at'], $b['created_at']));
-        } elseif ($sort === 'price-asc') {
-            usort($productsForView, fn($a, $b) => $a['price'] <=> $b['price']);
-        } elseif ($sort === 'price-desc') {
-            usort($productsForView, fn($a, $b) => $b['price'] <=> $a['price']);
+    // =========================================================================
+    // INDEX — /shop
+    // =========================================================================
+    public static function index(): void
+    {
+        $qs = self::parseQs();
+
+        $baseProducts = self::fetchBaseProducts();
+        $filteredProducts = self::filterProducts(
+            $baseProducts,
+            $qs['genderSlugs'],
+            $qs['categorySlugs'],
+            $qs['sizes'],
+            $qs['colors'],
+            $qs['priceRanges'],
+            $qs['search']
+        );
+
+        $productsForView = self::mapForView($filteredProducts);
+        self::sortProducts($productsForView, $qs['sortBy'][0] ?? '');
+
+        $opts = self::buildFilterOptions($baseProducts);
+
+        // Ambil filter categories & genders dari SQLite berdasarkan yang dipakai
+        $filterCategories = [];
+        if (!empty($opts['categorySlugs'])) {
+            $placeholders = implode(',', array_fill(0, count($opts['categorySlugs']), '?'));
+            $stmt = db()->prepare("
+                SELECT id, title, slug, icon, description
+                FROM product_categories
+                WHERE slug IN ($placeholders)
+                  AND deleted_at IS NULL AND available = 1
+                ORDER BY title ASC
+            ");
+            $stmt->execute($opts['categorySlugs']);
+            $filterCategories = $stmt->fetchAll();
         }
 
-        // =========================
-        // RETURN VIEW
-        // =========================
-        return view('front/shop/index', [
-            'products' => $productsForView,
+        $filterGenders = [];
+        if (!empty($opts['genderSlugs'])) {
+            $placeholders = implode(',', array_fill(0, count($opts['genderSlugs']), '?'));
+            $stmt = db()->prepare("
+                SELECT id, title, slug FROM genders
+                WHERE slug IN ($placeholders) AND deleted_at IS NULL
+                ORDER BY title ASC
+            ");
+            $stmt->execute($opts['genderSlugs']);
+            $filterGenders = $stmt->fetchAll();
+        }
 
-            // Filter Options
+        view('front/shop/index', [
+            'products' => $productsForView,
             'filterGenders' => $filterGenders,
             'filterCategories' => $filterCategories,
-            'filterColors' => array_keys($filterColors),
-            'filterSizes' => array_keys($filterSizes),
-            'priceRanges' => $priceRangesOptions,
-
-            // Active Filters
+            'filterColors' => $opts['colors'],
+            'filterSizes' => $opts['sizes'],
+            'priceRanges' => self::priceRangeOptions(),
             'activeFilters' => [
-                'gender' => $genderSlugs,
-                'category' => $categorySlugs,
-                'size' => $sizes,
-                'color' => $colors,
-                'price' => $priceRanges,
-                'q' => $search,
-                'sort' => $sortBy,
+                'gender' => $qs['genderSlugs'],
+                'category' => $qs['categorySlugs'],
+                'size' => $qs['sizes'],
+                'color' => $qs['colors'],
+                'price' => $qs['priceRanges'],
+                'q' => $qs['search'],
+                'sort' => $qs['sortBy'],
             ],
-
-            // Filter Context
             'filterContext' => [],
             'baseUrl' => '/shop',
         ]);
     }
 
-    public static function byGender(string $genderSlug)
+    // =========================================================================
+    // BY GENDER — /shop/{gender}
+    // =========================================================================
+    public static function byGender(string $genderSlug): void
     {
-        // =========================
-        // LOAD DATA
-        // =========================
-        $genders = json_read('genders.json') ?? [];
-        $categories = json_read('product-categories.json') ?? [];
-        $products = json_read('products.json') ?? [];
-
-        // =========================
-        // RESOLVE GENDER
-        // =========================
-        $gender = null;
-        foreach ($genders as $g) {
-            if ($g['slug'] === $genderSlug && empty($g['deleted_at'])) {
-                $gender = $g;
-                break;
-            }
-        }
+        $stmt = db()->prepare("SELECT id, title, slug, banner FROM genders WHERE slug = :slug AND deleted_at IS NULL LIMIT 1");
+        $stmt->execute([':slug' => $genderSlug]);
+        $gender = $stmt->fetch();
 
         if (!$gender) {
             http_response_code(404);
-            return view('errors/404');
+            view('errors/404');
+            return;
         }
 
-        $genderId = $gender['id'];
+        $qs = self::parseQs();
 
-        // =========================
-        // NORMALIZE QUERY STRING
-        // =========================
-        $qs = $_GET;
+        $baseProducts = self::fetchBaseProducts(lockedGenderId: (int) $gender['id']);
+        $filteredProducts = self::filterProducts(
+            $baseProducts,
+            [],
+            $qs['categorySlugs'],
+            $qs['sizes'],
+            $qs['colors'],
+            $qs['priceRanges'],
+            $qs['search']
+        );
 
-        $categorySlugs = array_values((array) ($qs['category'] ?? []));
-        $sizes = array_values((array) ($qs['size'] ?? []));
-        $colors = array_values((array) ($qs['color'] ?? []));
-        $priceRanges = array_values((array) ($qs['price'] ?? []));
-        $search = trim($qs['q'] ?? '');
-        $sortBy = array_values((array) ($qs['sort'] ?? []));
+        $productsForView = self::mapForView($filteredProducts);
+        self::sortProducts($productsForView, $qs['sortBy'][0] ?? '');
 
-        // =========================
-        // BUILD CATEGORY MAPS
-        // =========================
-        $categorySlugToId = [];
-        $categoryIdToSlug = [];
+        $opts = self::buildFilterOptions($baseProducts);
 
-        foreach ($categories as $c) {
-            if (empty($c['deleted_at'])) {
-                $categorySlugToId[$c['slug']] = $c['id'];
-                $categoryIdToSlug[$c['id']] = $c['slug'];
-            }
+        $filterCategories = [];
+        if (!empty($opts['categorySlugs'])) {
+            $placeholders = implode(',', array_fill(0, count($opts['categorySlugs']), '?'));
+            $stmt = db()->prepare("
+                SELECT id, title, slug FROM product_categories
+                WHERE slug IN ($placeholders) AND deleted_at IS NULL AND available = 1
+                ORDER BY title ASC
+            ");
+            $stmt->execute($opts['categorySlugs']);
+            $filterCategories = $stmt->fetchAll();
         }
 
-        // =========================
-        // GET BASE PRODUCTS (GENDER LOCKED)
-        // =========================
-        $baseProducts = array_values(array_filter($products, function ($p) use ($genderId) {
-            return
-                ($p['gender_id'] ?? null) === $genderId &&
-                empty($p['deleted_at']) &&
-                !empty($p['status']);
-        }));
-
-        // =========================
-        // FILTER PRODUCTS
-        // =========================
-        $filteredProducts = array_values(array_filter($baseProducts, function ($p) use ($categorySlugs, $categorySlugToId, $sizes, $colors, $priceRanges, $search) {
-
-            // CATEGORY
-            if ($categorySlugs) {
-                $allowedCategoryIds = array_intersect_key(
-                    $categorySlugToId,
-                    array_flip($categorySlugs)
-                );
-
-                if (!in_array($p['product_category_id'], $allowedCategoryIds, true)) {
-                    return false;
-                }
-            }
-
-            // SIZE
-            if ($sizes && empty(array_intersect($p['sizes'] ?? [], $sizes))) {
-                return false;
-            }
-
-            // COLOR
-            if ($colors && empty(array_intersect($p['colors'] ?? [], $colors))) {
-                return false;
-            }
-
-            // PRICE RANGE
-            if ($priceRanges) {
-                $priceMatch = false;
-
-                foreach ($priceRanges as $range) {
-                    [$min, $max] = array_pad(explode('-', $range), 2, null);
-
-                    if (
-                        ($min === null || $p['price'] >= (int) $min) &&
-                        ($max === null || $p['price'] <= (int) $max)
-                    ) {
-                        $priceMatch = true;
-                        break;
-                    }
-                }
-
-                if (!$priceMatch)
-                    return false;
-            }
-
-            // SEARCH
-            if ($search && stripos($p['title'], $search) === false) {
-                return false;
-            }
-
-            return true;
-        }));
-
-        // =========================
-        // MAP PRODUCTS FOR VIEW
-        // =========================
-        $productsForView = array_map(function ($p) use ($categoryIdToSlug, $genderSlug) {
-            return [
-                'title' => $p['title'],
-                'slug_uuid' => $p['slug_uuid'],
-                'slug' => $p['slug'],
-                'price' => $p['price'],
-                'thumbnail' => $p['images'][0] ?? null,
-                'gender' => $genderSlug,
-                'category' => $categoryIdToSlug[$p['product_category_id']] ?? null,
-                'sizes' => $p['sizes'] ?? [],
-                'colors' => $p['colors'] ?? [],
-                'created_at' => $p['created_at'] ?? '',
-            ];
-        }, $filteredProducts);
-
-        // =========================
-        // BUILD FILTER OPTIONS
-        // =========================
-        $filterColors = [];
-        $filterSizes = [];
-        $usedCategorySlugs = [];
-
-        foreach ($baseProducts as $p) {
-            foreach ($p['colors'] ?? [] as $c) {
-                $filterColors[$c] = true;
-            }
-
-            foreach ($p['sizes'] ?? [] as $s) {
-                $filterSizes[$s] = true;
-            }
-
-            if (isset($categoryIdToSlug[$p['product_category_id']])) {
-                $usedCategorySlugs[$categoryIdToSlug[$p['product_category_id']]] = true;
-            }
-        }
-
-        $filterCategories = array_values(array_filter($categories, function ($c) use ($usedCategorySlugs) {
-            return
-                empty($c['deleted_at']) &&
-                !empty($c['available']) &&
-                isset($usedCategorySlugs[$c['slug']]);
-        }));
-
-        $priceRangesOptions = [
-            '0-100000' => 'Under Rp 100k',
-            '100000-300000' => 'Rp 100k – 300k',
-            '300000-999999999' => 'Above Rp 300k',
-        ];
-
-        // =========================
-        // SORT
-        // =========================
-        $sort = $sortBy[0] ?? '';
-
-        if ($sort === 'newest') {
-            usort($productsForView, fn($a, $b) => strcmp($b['created_at'], $a['created_at']));
-        } elseif ($sort === 'oldest') {
-            usort($productsForView, fn($a, $b) => strcmp($a['created_at'], $b['created_at']));
-        } elseif ($sort === 'price-asc') {
-            usort($productsForView, fn($a, $b) => $a['price'] <=> $b['price']);
-        } elseif ($sort === 'price-desc') {
-            usort($productsForView, fn($a, $b) => $b['price'] <=> $a['price']);
-        }
-
-        // =========================
-        // RETURN VIEW
-        // =========================
-        return view('front/shop/shop_gender', [
+        view('front/shop/shop_gender', [
             'gender' => $gender,
             'products' => $productsForView,
-
-            // Filter Options
             'filterCategories' => $filterCategories,
-            'filterColors' => array_keys($filterColors),
-            'filterSizes' => array_keys($filterSizes),
-            'priceRanges' => $priceRangesOptions,
-
-            // Active Filters
+            'filterColors' => $opts['colors'],
+            'filterSizes' => $opts['sizes'],
+            'priceRanges' => self::priceRangeOptions(),
             'activeFilters' => [
-                'category' => $categorySlugs,
-                'size' => $sizes,
-                'color' => $colors,
-                'price' => $priceRanges,
-                'q' => $search,
-                'sort' => $sortBy,
+                'category' => $qs['categorySlugs'],
+                'size' => $qs['sizes'],
+                'color' => $qs['colors'],
+                'price' => $qs['priceRanges'],
+                'q' => $qs['search'],
+                'sort' => $qs['sortBy'],
             ],
-
-            // Filter Context
-            'filterContext' => [
-                'lockedGender' => $gender,
-            ],
-            'filterGenders' => [], // Hidden
+            'filterContext' => ['lockedGender' => $gender],
+            'filterGenders' => [],
             'baseUrl' => '/shop/' . $gender['slug'],
         ]);
     }
 
-    public static function byCategoryOnly(string $categorySlug)
+    // =========================================================================
+    // BY CATEGORY ONLY — /shop/category/{category}
+    // =========================================================================
+    public static function byCategoryOnly(string $categorySlug): void
     {
-        // =========================
-        // LOAD DATA
-        // =========================
-        $categories = json_read('product-categories.json') ?? [];
-        $products = json_read('products.json') ?? [];
-        $genders = json_read('genders.json') ?? [];
-
-        // =========================
-        // RESOLVE CATEGORY
-        // =========================
-        $category = null;
-        foreach ($categories as $c) {
-            if (
-                $c['slug'] === $categorySlug &&
-                empty($c['deleted_at']) &&
-                !empty($c['available'])
-            ) {
-                $category = $c;
-                break;
-            }
-        }
+        $stmt = db()->prepare("SELECT id, title, slug FROM product_categories WHERE slug = :slug AND deleted_at IS NULL AND available = 1 LIMIT 1");
+        $stmt->execute([':slug' => $categorySlug]);
+        $category = $stmt->fetch();
 
         if (!$category) {
             http_response_code(404);
-            return view('errors/404');
+            view('errors/404');
+            return;
         }
 
-        $categoryId = $category['id'];
+        $qs = self::parseQs();
 
-        // =========================
-        // NORMALIZE QUERY STRING
-        // =========================
-        $qs = $_GET;
+        $baseProducts = self::fetchBaseProducts(lockedCategoryId: (int) $category['id']);
+        $filteredProducts = self::filterProducts(
+            $baseProducts,
+            $qs['genderSlugs'],
+            [],
+            $qs['sizes'],
+            $qs['colors'],
+            $qs['priceRanges'],
+            $qs['search']
+        );
 
-        $genderSlugs = array_values((array) ($qs['gender'] ?? []));
-        $sizes = array_values((array) ($qs['size'] ?? []));
-        $colors = array_values((array) ($qs['color'] ?? []));
-        $priceRanges = array_values((array) ($qs['price'] ?? []));
-        $search = trim($qs['q'] ?? '');
-        $sortBy = array_values((array) ($qs['sort'] ?? []));
+        $productsForView = self::mapForView($filteredProducts);
+        self::sortProducts($productsForView, $qs['sortBy'][0] ?? '');
 
-        // =========================
-        // BUILD GENDER MAPS
-        // =========================
-        $genderSlugToId = [];
-        $genderIdToSlug = [];
+        $opts = self::buildFilterOptions($baseProducts);
 
-        foreach ($genders as $g) {
-            if (empty($g['deleted_at'])) {
-                $genderSlugToId[$g['slug']] = $g['id'];
-                $genderIdToSlug[$g['id']] = $g['slug'];
-            }
+        $filterGenders = [];
+        if (!empty($opts['genderSlugs'])) {
+            $placeholders = implode(',', array_fill(0, count($opts['genderSlugs']), '?'));
+            $stmt = db()->prepare("
+                SELECT id, title, slug FROM genders
+                WHERE slug IN ($placeholders) AND deleted_at IS NULL
+                ORDER BY title ASC
+            ");
+            $stmt->execute($opts['genderSlugs']);
+            $filterGenders = $stmt->fetchAll();
         }
 
-        // =========================
-        // GET BASE PRODUCTS (CATEGORY LOCKED)
-        // =========================
-        $baseProducts = array_values(array_filter($products, function ($p) use ($categoryId) {
-            return
-                ($p['product_category_id'] ?? null) === $categoryId &&
-                empty($p['deleted_at']) &&
-                !empty($p['status']);
-        }));
-
-        // =========================
-        // FILTER PRODUCTS
-        // =========================
-        $filteredProducts = array_values(array_filter($baseProducts, function ($p) use ($genderSlugs, $genderSlugToId, $sizes, $colors, $priceRanges, $search) {
-
-            // GENDER (optional filter)
-            if ($genderSlugs) {
-                $allowedGenderIds = array_intersect_key(
-                    $genderSlugToId,
-                    array_flip($genderSlugs)
-                );
-
-                if (!in_array($p['gender_id'] ?? null, $allowedGenderIds, true)) {
-                    return false;
-                }
-            }
-
-            // SIZE
-            if ($sizes && empty(array_intersect($p['sizes'] ?? [], $sizes))) {
-                return false;
-            }
-
-            // COLOR
-            if ($colors && empty(array_intersect($p['colors'] ?? [], $colors))) {
-                return false;
-            }
-
-            // PRICE RANGE
-            if ($priceRanges) {
-                $priceMatch = false;
-
-                foreach ($priceRanges as $range) {
-                    [$min, $max] = array_pad(explode('-', $range), 2, null);
-
-                    if (
-                        ($min === null || $p['price'] >= (int) $min) &&
-                        ($max === null || $p['price'] <= (int) $max)
-                    ) {
-                        $priceMatch = true;
-                        break;
-                    }
-                }
-
-                if (!$priceMatch)
-                    return false;
-            }
-
-            // SEARCH
-            if ($search && stripos($p['title'], $search) === false) {
-                return false;
-            }
-
-            return true;
-        }));
-
-        // =========================
-        // MAP PRODUCTS FOR VIEW
-        // =========================
-        $productsForView = array_map(function ($p) use ($genderIdToSlug, $categorySlug) {
-            $genderSlug = $genderIdToSlug[$p['gender_id'] ?? null] ?? null;
-
-            return [
-                'title' => $p['title'],
-                'slug_uuid' => $p['slug_uuid'],
-                'slug' => $p['slug'],
-                'price' => $p['price'],
-                'thumbnail' => $p['images'][0] ?? null,
-                'gender' => $genderSlug,
-                'category' => $categorySlug,
-                'sizes' => $p['sizes'] ?? [],
-                'colors' => $p['colors'] ?? [],
-                'created_at' => $p['created_at'] ?? '',
-            ];
-        }, $filteredProducts);
-
-        // =========================
-        // BUILD FILTER OPTIONS
-        // =========================
-        $filterColors = [];
-        $filterSizes = [];
-        $usedGenderIds = [];
-
-        foreach ($baseProducts as $p) {
-            foreach ($p['colors'] ?? [] as $c) {
-                $filterColors[$c] = true;
-            }
-
-            foreach ($p['sizes'] ?? [] as $s) {
-                $filterSizes[$s] = true;
-            }
-
-            if (!empty($p['gender_id'])) {
-                $usedGenderIds[$p['gender_id']] = true;
-            }
-        }
-
-        $filterGenders = array_values(array_filter($genders, function ($g) use ($usedGenderIds) {
-            return
-                empty($g['deleted_at']) &&
-                isset($usedGenderIds[$g['id']]);
-        }));
-
-        $priceRangesOptions = [
-            '0-100000' => 'Under Rp 100k',
-            '100000-300000' => 'Rp 100k – 300k',
-            '300000-999999999' => 'Above Rp 300k',
-        ];
-
-        // =========================
-        // SORT
-        // =========================
-        $sort = $sortBy[0] ?? '';
-
-        if ($sort === 'newest') {
-            usort($productsForView, fn($a, $b) => strcmp($b['created_at'], $a['created_at']));
-        } elseif ($sort === 'oldest') {
-            usort($productsForView, fn($a, $b) => strcmp($a['created_at'], $b['created_at']));
-        } elseif ($sort === 'price-asc') {
-            usort($productsForView, fn($a, $b) => $a['price'] <=> $b['price']);
-        } elseif ($sort === 'price-desc') {
-            usort($productsForView, fn($a, $b) => $b['price'] <=> $a['price']);
-        }
-
-        // =========================
-        // RETURN VIEW
-        // =========================
-        return view('front/shop/shop_category_only', [
+        view('front/shop/shop_category_only', [
             'category' => $category,
             'products' => $productsForView,
-
-            // Filter Options
             'filterGenders' => $filterGenders,
-            'filterColors' => array_keys($filterColors),
-            'filterSizes' => array_keys($filterSizes),
-            'priceRanges' => $priceRangesOptions,
-
-            // Active Filters
+            'filterColors' => $opts['colors'],
+            'filterSizes' => $opts['sizes'],
+            'priceRanges' => self::priceRangeOptions(),
             'activeFilters' => [
-                'gender' => $genderSlugs,
-                'size' => $sizes,
-                'color' => $colors,
-                'price' => $priceRanges,
-                'q' => $search,
-                'sort' => $sortBy,
+                'gender' => $qs['genderSlugs'],
+                'size' => $qs['sizes'],
+                'color' => $qs['colors'],
+                'price' => $qs['priceRanges'],
+                'q' => $qs['search'],
+                'sort' => $qs['sortBy'],
             ],
-
-            // Filter Context
-            'filterContext' => [
-                'lockedCategory' => $category,
-            ],
-            'filterCategories' => [], // Hidden (category locked)
+            'filterContext' => ['lockedCategory' => $category],
+            'filterCategories' => [],
             'baseUrl' => '/shop/category/' . $category['slug'],
         ]);
     }
 
-    public static function byCategory(string $genderSlug, string $categorySlug)
+    // =========================================================================
+    // BY CATEGORY — /shop/{gender}/{category}
+    // =========================================================================
+    public static function byCategory(string $genderSlug, string $categorySlug): void
     {
-        // =========================
-        // LOAD DATA
-        // =========================
-        $genders = json_read('genders.json') ?? [];
-        $categories = json_read('product-categories.json') ?? [];
-        $products = json_read('products.json') ?? [];
-
-        // =========================
-        // RESOLVE GENDER
-        // =========================
-        $gender = null;
-        foreach ($genders as $g) {
-            if ($g['slug'] === $genderSlug && empty($g['deleted_at'])) {
-                $gender = $g;
-                break;
-            }
-        }
+        $stmtG = db()->prepare("SELECT id, title, slug FROM genders WHERE slug = :slug AND deleted_at IS NULL LIMIT 1");
+        $stmtG->execute([':slug' => $genderSlug]);
+        $gender = $stmtG->fetch();
 
         if (!$gender) {
             http_response_code(404);
-            return view('errors/404');
+            view('errors/404');
+            return;
         }
 
-        // =========================
-        // RESOLVE CATEGORY
-        // =========================
-        $category = null;
-        foreach ($categories as $c) {
-            if (
-                $c['slug'] === $categorySlug &&
-                empty($c['deleted_at']) &&
-                !empty($c['available'])
-            ) {
-                $category = $c;
-                break;
-            }
-        }
+        $stmtC = db()->prepare("SELECT id, title, slug FROM product_categories WHERE slug = :slug AND deleted_at IS NULL AND available = 1 LIMIT 1");
+        $stmtC->execute([':slug' => $categorySlug]);
+        $category = $stmtC->fetch();
 
         if (!$category) {
             http_response_code(404);
-            return view('errors/404');
+            view('errors/404');
+            return;
         }
 
-        $genderId = $gender['id'];
-        $categoryId = $category['id'];
+        $qs = self::parseQs();
 
-        // =========================
-        // NORMALIZE QUERY STRING
-        // =========================
-        $qs = $_GET;
+        $baseProducts = self::fetchBaseProducts(
+            lockedGenderId: (int) $gender['id'],
+            lockedCategoryId: (int) $category['id']
+        );
+        $filteredProducts = self::filterProducts(
+            $baseProducts,
+            [],
+            [],
+            $qs['sizes'],
+            $qs['colors'],
+            $qs['priceRanges'],
+            $qs['search']
+        );
 
-        $sizes = array_values((array) ($qs['size'] ?? []));
-        $colors = array_values((array) ($qs['color'] ?? []));
-        $priceRanges = array_values((array) ($qs['price'] ?? []));
-        $search = trim($qs['q'] ?? '');
-        $sortBy = array_values((array) ($qs['sort'] ?? []));
+        $productsForView = self::mapForView($filteredProducts);
+        self::sortProducts($productsForView, $qs['sortBy'][0] ?? '');
 
-        // =========================
-        // GET BASE PRODUCTS (DOUBLE LOCKED)
-        // =========================
-        $baseProducts = array_values(array_filter($products, function ($p) use ($genderId, $categoryId) {
-            return
-                ($p['gender_id'] ?? null) === $genderId &&
-                ($p['product_category_id'] ?? null) === $categoryId &&
-                empty($p['deleted_at']) &&
-                !empty($p['status']);
-        }));
+        $opts = self::buildFilterOptions($baseProducts);
 
-        // =========================
-        // FILTER PRODUCTS
-        // =========================
-        $filteredProducts = array_values(array_filter($baseProducts, function ($p) use ($sizes, $colors, $priceRanges, $search) {
-
-            if ($sizes && empty(array_intersect($p['sizes'] ?? [], $sizes))) {
-                return false;
-            }
-
-            if ($colors && empty(array_intersect($p['colors'] ?? [], $colors))) {
-                return false;
-            }
-
-            if ($priceRanges) {
-                $priceMatch = false;
-
-                foreach ($priceRanges as $range) {
-                    [$min, $max] = array_pad(explode('-', $range), 2, null);
-
-                    if (
-                        ($min === null || $p['price'] >= (int) $min) &&
-                        ($max === null || $p['price'] <= (int) $max)
-                    ) {
-                        $priceMatch = true;
-                        break;
-                    }
-                }
-
-                if (!$priceMatch)
-                    return false;
-            }
-
-            if ($search && stripos($p['title'], $search) === false) {
-                return false;
-            }
-
-            return true;
-        }));
-
-        // =========================
-        // MAP PRODUCTS FOR VIEW
-        // =========================
-        $categoryIdToSlug = [];
-        foreach ($categories as $c) {
-            if (empty($c['deleted_at'])) {
-                $categoryIdToSlug[$c['id']] = $c['slug'];
-            }
-        }
-
-        $productsForView = array_map(function ($p) use ($categoryIdToSlug, $genderSlug) {
-            return [
-                'title' => $p['title'],
-                'slug_uuid' => $p['slug_uuid'],
-                'slug' => $p['slug'],
-                'price' => $p['price'],
-                'thumbnail' => $p['images'][0] ?? null,
-                'gender' => $genderSlug,
-                'category' => $categoryIdToSlug[$p['product_category_id']] ?? null,
-                'sizes' => $p['sizes'] ?? [],
-                'colors' => $p['colors'] ?? [],
-                'created_at' => $p['created_at'] ?? '',
-            ];
-        }, $filteredProducts);
-
-        // =========================
-        // BUILD FILTER OPTIONS
-        // =========================
-        $filterColors = [];
-        $filterSizes = [];
-
-        foreach ($baseProducts as $p) {
-            foreach ($p['colors'] ?? [] as $c) {
-                $filterColors[$c] = true;
-            }
-
-            foreach ($p['sizes'] ?? [] as $s) {
-                $filterSizes[$s] = true;
-            }
-        }
-
-        $priceRangesOptions = [
-            '0-100000' => 'Under Rp 100k',
-            '100000-300000' => 'Rp 100k – 300k',
-            '300000-999999999' => 'Above Rp 300k',
-        ];
-
-        // =========================
-        // SORT
-        // =========================
-        $sort = $sortBy[0] ?? '';
-
-        if ($sort === 'newest') {
-            usort($productsForView, fn($a, $b) => strcmp($b['created_at'], $a['created_at']));
-        } elseif ($sort === 'oldest') {
-            usort($productsForView, fn($a, $b) => strcmp($a['created_at'], $b['created_at']));
-        } elseif ($sort === 'price-asc') {
-            usort($productsForView, fn($a, $b) => $a['price'] <=> $b['price']);
-        } elseif ($sort === 'price-desc') {
-            usort($productsForView, fn($a, $b) => $b['price'] <=> $a['price']);
-        }
-
-        // =========================
-        // RETURN VIEW
-        // =========================
-        return view('front/shop/shop_category', [
+        view('front/shop/shop_category', [
             'gender' => $gender,
             'category' => $category,
             'products' => $productsForView,
-
-            // Filter Options
-            'filterColors' => array_keys($filterColors),
-            'filterSizes' => array_keys($filterSizes),
-            'priceRanges' => $priceRangesOptions,
-
-            // Active Filters
+            'filterColors' => $opts['colors'],
+            'filterSizes' => $opts['sizes'],
+            'priceRanges' => self::priceRangeOptions(),
             'activeFilters' => [
-                'size' => $sizes,
-                'color' => $colors,
-                'price' => $priceRanges,
-                'q' => $search,
-                'sort' => $sortBy,
+                'size' => $qs['sizes'],
+                'color' => $qs['colors'],
+                'price' => $qs['priceRanges'],
+                'q' => $qs['search'],
+                'sort' => $qs['sortBy'],
             ],
-
-            // Filter Context
-            'filterContext' => [
-                'lockedGender' => $gender,
-                'lockedCategory' => $category,
-            ],
+            'filterContext' => ['lockedGender' => $gender, 'lockedCategory' => $category],
             'filterGenders' => [],
             'filterCategories' => [],
             'baseUrl' => '/shop/' . $gender['slug'] . '/' . $category['slug'],
         ]);
     }
 
-    public static function show(string $genderSlug, string $categorySlug, string $productSlugUuid)
+    // =========================================================================
+    // SHOW — /shop/{gender}/{category}/{product}
+    // =========================================================================
+    public static function show(string $genderSlug, string $categorySlug, string $productSlugUuid): void
     {
-        // =========================
-        // LOAD DATA
-        // =========================
-        $genders = json_read('genders.json') ?? [];
-        $categories = json_read('product-categories.json') ?? [];
-        $products = json_read('products.json') ?? [];
-
-        // =========================
-        // RESOLVE GENDER
-        // =========================
-        $gender = null;
-        foreach ($genders as $g) {
-            if ($g['slug'] === $genderSlug && empty($g['deleted_at'])) {
-                $gender = $g;
-                break;
-            }
-        }
+        $stmtG = db()->prepare("SELECT id, title, slug FROM genders WHERE slug = :slug AND deleted_at IS NULL LIMIT 1");
+        $stmtG->execute([':slug' => $genderSlug]);
+        $gender = $stmtG->fetch();
 
         if (!$gender) {
             http_response_code(404);
-            return view('errors/404');
+            view('errors/404');
+            return;
         }
 
-        // =========================
-        // RESOLVE CATEGORY
-        // =========================
-        $category = null;
-        foreach ($categories as $c) {
-            if (
-                $c['slug'] === $categorySlug &&
-                empty($c['deleted_at']) &&
-                !empty($c['available'])
-            ) {
-                $category = $c;
-                break;
-            }
-        }
+        $stmtC = db()->prepare("SELECT id, title, slug FROM product_categories WHERE slug = :slug AND deleted_at IS NULL AND available = 1 LIMIT 1");
+        $stmtC->execute([':slug' => $categorySlug]);
+        $category = $stmtC->fetch();
 
         if (!$category) {
             http_response_code(404);
-            return view('errors/404');
+            view('errors/404');
+            return;
         }
 
-        // =========================
-        // FIND PRODUCT
-        // =========================
-        $product = null;
-
-        foreach ($products as $p) {
-            if (
-                ($p['slug_uuid'] ?? null) === $productSlugUuid &&
-                ($p['gender_id'] ?? null) === $gender['id'] &&
-                ($p['product_category_id'] ?? null) === $category['id'] &&
-                empty($p['deleted_at']) &&
-                !empty($p['status'])
-            ) {
-                $product = $p;
-                break;
-            }
-        }
+        // Ambil product
+        $stmtP = db()->prepare("
+            SELECT p.id, p.title, p.slug, p.slug_uuid, p.description, p.created_at,
+                   p.product_category_id, p.gender_id
+            FROM products p
+            WHERE p.slug_uuid          = :slug_uuid
+              AND p.gender_id          = :gender_id
+              AND p.product_category_id = :category_id
+              AND p.deleted_at IS NULL
+              AND p.status = 1
+            LIMIT 1
+        ");
+        $stmtP->execute([
+            ':slug_uuid' => $productSlugUuid,
+            ':gender_id' => $gender['id'],
+            ':category_id' => $category['id'],
+        ]);
+        $product = $stmtP->fetch();
 
         if (!$product) {
             http_response_code(404);
-            return view('errors/404');
+            view('errors/404');
+            return;
         }
 
-        // =========================
-        // FORMAT PRODUCT FOR VIEW
-        // =========================
+        // Ambil images
+        $imgStmt = db()->prepare("SELECT image FROM product_images WHERE product_id = :id ORDER BY sort_order ASC");
+        $imgStmt->execute([':id' => $product['id']]);
+        $images = array_column($imgStmt->fetchAll(), 'image');
+
+        // Ambil variants
+        $varStmt = db()->prepare("SELECT color, size, price, stock FROM product_variants WHERE product_id = :id ORDER BY color ASC, size ASC");
+        $varStmt->execute([':id' => $product['id']]);
+        $variants = $varStmt->fetchAll();
+
+        // Build colors, sizes, price_from, total_stock dari variants
+        $colors = array_values(array_unique(array_column($variants, 'color')));
+        $sizes = array_values(array_unique(array_column($variants, 'size')));
+        $priceFrom = !empty($variants) ? min(array_column($variants, 'price')) : 0;
+        $stock = array_sum(array_column($variants, 'stock'));
+
         $productForView = [
-            'uuid' => $product['id'],
+            'id' => $product['id'],
             'title' => $product['title'],
             'slug_uuid' => $product['slug_uuid'],
             'slug' => $product['slug'],
-            'price' => $product['price'],
+            'price' => (int) $priceFrom,
             'description' => $product['description'],
-            'images' => $product['images'] ?? [],
-            'sizes' => $product['sizes'] ?? [],
-            'colors' => $product['colors'] ?? [],
-            'stock' => $product['stock'] ?? 0,
-
-            'gender' => [
-                'title' => $gender['title'],
-                'slug' => $gender['slug'],
-            ],
-
-            'category' => [
-                'title' => $category['title'],
-                'slug' => $category['slug'],
-            ],
+            'images' => $images,
+            'sizes' => $sizes,
+            'colors' => $colors,
+            'stock' => (int) $stock,
+            'variants' => $variants, // untuk variant picker di JS
+            'gender' => ['title' => $gender['title'], 'slug' => $gender['slug']],
+            'category' => ['title' => $category['title'], 'slug' => $category['slug']],
         ];
 
-        // =========================
-        // RELATED PRODUCTS (OPTIONAL BUT STRONG)
-        // =========================
-        $related = array_values(array_filter($products, function ($p) use ($product, $gender, $category) {
-            return
-                $p['slug'] !== $product['slug'] &&
-                ($p['gender_id'] ?? null) === $gender['id'] &&
-                ($p['product_category_id'] ?? null) === $category['id'] &&
-                empty($p['deleted_at']) &&
-                !empty($p['status']);
-        }));
+        // Related products
+        $relStmt = db()->prepare("
+            SELECT p.title, p.slug, p.slug_uuid,
+                   MIN(pv.price) AS price_from,
+                   (SELECT image FROM product_images WHERE product_id = p.id ORDER BY sort_order ASC LIMIT 1) AS thumbnail
+            FROM products p
+            LEFT JOIN product_variants pv ON pv.product_id = p.id
+            WHERE p.slug_uuid          != :slug_uuid
+              AND p.gender_id          = :gender_id
+              AND p.product_category_id = :category_id
+              AND p.deleted_at IS NULL
+              AND p.status = 1
+            GROUP BY p.id
+            ORDER BY p.created_at DESC
+            LIMIT 4
+        ");
+        $relStmt->execute([
+            ':slug_uuid' => $productSlugUuid,
+            ':gender_id' => $gender['id'],
+            ':category_id' => $category['id'],
+        ]);
 
-        $related = array_slice($related, 0, 4);
+        $relatedForView = array_map(fn($r) => [
+            'title' => $r['title'],
+            'slug' => $r['slug'],
+            'slug_uuid' => $r['slug_uuid'],
+            'price' => (int) $r['price_from'],
+            'thumbnail' => $r['thumbnail'],
+            'gender' => $gender['slug'],
+            'category' => $category['slug'],
+        ], $relStmt->fetchAll());
 
-        $relatedForView = array_map(function ($p) use ($gender, $category) {
-            return [
-                'title' => $p['title'],
-                'slug' => $p['slug'],
-                'price' => $p['price'],
-                'thumbnail' => $p['images'][0] ?? null,
-                'gender' => $gender['slug'],
-                'category' => $category['slug'],
-            ];
-        }, $related);
-
+        // Back URL
         $backUrl = '/shop/' . $gender['slug'];
-
         if (!empty($_SERVER['HTTP_REFERER'])) {
             $ref = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_PATH);
-
-            // hanya terima referer dari shop gender
             if (preg_match('#^/shop/' . preg_quote($gender['slug'], '#') . '$#', $ref)) {
                 $backUrl = $ref;
             }
         }
 
-        // =========================
-        // RETURN VIEW
-        // =========================
-        return view('front/shop/product_show', [
+        view('front/shop/product_show', [
             'product' => $productForView,
             'gender' => $gender,
             'category' => $category,
@@ -1022,5 +627,4 @@ class ShopController
             'backUrl' => $backUrl,
         ]);
     }
-
 }

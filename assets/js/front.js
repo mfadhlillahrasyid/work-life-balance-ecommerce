@@ -595,7 +595,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .map(
         (product, index) => `
       <a 
-        href="/shop/${product.gender}/${product.category}/${product.slug_uuid}"
+        href="/shop/${product.gender_slug}/${product.category_slug}/${product.slug_uuid}"
         class="search-result flex items-center gap-4 p-3 rounded-lg hover:bg-gray-50 transition-colors ${index === selectedIndex ? "bg-gray-50" : ""}"
         data-index="${index}"
       >
@@ -608,8 +608,8 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold text-gray-900 truncate">${product.title}</p>
-          <p class="text-xs text-gray-500 capitalize">${product.category} • ${product.gender}</p>
-          <p class="text-sm font-medium text-indigo-600 mt-1">Rp ${Number(product.price).toLocaleString("id-ID")}</p>
+          <p class="text-xs text-gray-500 capitalize">${product.category_slug} • ${product.gender_slug}</p>
+          <p class="text-sm font-medium text-indigo-600 mt-1">Rp ${Number(product.price_from).toLocaleString("id-ID")}</p>
         </div>
         <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>

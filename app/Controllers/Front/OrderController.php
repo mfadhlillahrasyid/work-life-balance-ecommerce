@@ -7,6 +7,33 @@ use App\Middleware\CustomerAuth;
 class OrderController
 {
     /**
+     * List customer orders
+     * 
+     * Route: GET /account/orders
+     */
+    public static function index()
+    {
+        // Require authentication
+        CustomerAuth::require();
+
+        $customer = CustomerAuth::customer();
+        $orders = json_read('orders.json') ?? [];
+
+        // Filter by customer
+        $customerOrders = array_values(array_filter($orders, function ($o) use ($customer) {
+            return $o['customer_uuid'] === $customer['uuid'];
+        }));
+
+        // Sort by created_at DESC
+        usort($customerOrders, function ($a, $b) {
+            return strcmp($b['created_at'], $a['created_at']);
+        });
+
+        return view('account/orders/index', [
+            'orders' => $customerOrders,
+        ]);
+    }
+    /**
      * Show order detail page (protected)
      * 
      * Route: GET /order/{order_id}
@@ -112,38 +139,10 @@ class OrderController
         // Update order
         $orders[$orderIndex]['payment_proof'] = $filename;
         $orders[$orderIndex]['updated_at'] = date('Y-m-d H:i:s');
-        
+
         json_write('orders.json', $orders);
 
         $_SESSION['success'] = 'Bukti pembayaran berhasil diupload! Pesanan Anda akan segera diproses.';
         return redirect('/order/' . $orderId);
-    }
-
-    /**
-     * List customer orders
-     * 
-     * Route: GET /account/orders
-     */
-    public static function index()
-    {
-        // Require authentication
-        CustomerAuth::require();
-
-        $customer = CustomerAuth::customer();
-        $orders = json_read('orders.json') ?? [];
-
-        // Filter by customer
-        $customerOrders = array_values(array_filter($orders, function($o) use ($customer) {
-            return $o['customer_uuid'] === $customer['uuid'];
-        }));
-
-        // Sort by created_at DESC
-        usort($customerOrders, function($a, $b) {
-            return strcmp($b['created_at'], $a['created_at']);
-        });
-
-        return view('account/orders/index', [
-            'orders' => $customerOrders,
-        ]);
     }
 }

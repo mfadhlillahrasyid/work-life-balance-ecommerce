@@ -10,6 +10,7 @@ use App\Controllers\Admin\PostController;
 use App\Controllers\Admin\AuthController;
 use App\Controllers\Admin\DashboardController;
 use App\Controllers\Admin\UserController;
+use App\Controllers\Admin\ShippingZoneController;
 
 
 /*
@@ -261,6 +262,47 @@ $routes[] = [
     'method' => 'POST',
     'pattern' => '#^admin/posts/([a-z0-9\-]+)/delete$#',
     'action' => [PostController::class, 'destroy']
+];
+
+/*
+|--------------------------------------------------------------------------
+| SHIPPING ZONES
+|--------------------------------------------------------------------------
+*/
+$routes[] = [
+    'method' => 'GET',
+    'pattern' => '#^admin/shipping-zones$#',
+    'action' => [ShippingZoneController::class, 'index']
+];
+
+$routes[] = [
+    'method' => 'GET',
+    'pattern' => '#^admin/shipping-zones/create$#',
+    'action' => [ShippingZoneController::class, 'create']
+];
+
+$routes[] = [
+    'method' => 'POST',
+    'pattern' => '#^admin/shipping-zones$#',
+    'action' => [ShippingZoneController::class, 'store']
+];
+
+$routes[] = [
+    'method' => 'GET',
+    'pattern' => '#^admin/shipping-zones/([a-z0-9\-]+)/edit$#',
+    'action' => [ShippingZoneController::class, 'edit']
+];
+
+$routes[] = [
+    'method' => 'POST',
+    'pattern' => '#^admin/shipping-zones/([a-z0-9\-]+)/update$#',
+    'action' => [ShippingZoneController::class, 'update']
+];
+
+$routes[] = [
+    'method' => 'POST',
+    'pattern' => '#^admin/shipping-zones/([a-z0-9\-]+)/delete$#',
+    'action' => [ShippingZoneController::class, 'destroy']
 ];
 
 /*
