@@ -1,4 +1,4 @@
-<?php $page_title = 'WORK LIFE BALANCE | Your Everyday Lifestyle Goes on 🔥';
+<?php $page_title = 'Work Life Balance | Your Everyday Lifestyle Goes on 🔥';
 ob_start();
 ?>
 
